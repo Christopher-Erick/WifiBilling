@@ -1,0 +1,108 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lipawifi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lipawifi_dev}
+      POSTGRES_DB: lipawifi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lipawifi -d lipawifi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      PORT: 43127
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "43127"
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    env_file: .env
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  worker:
+    build: .
+    env_file: .env
+    command: ["npx", "tsx", "src/jobs/worker.ts"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    env_file: .env
+    command: ["npx", "tsx", "src/jobs/scheduler.ts"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  freeradius:
+    image: freeradius/freeradius-server:3.2.3
+    command: ["-f", "-l", "stdout"]
+    volumes:
+      - ./deploy/freeradius/clients.conf:/etc/raddb/clients.conf:ro
+      - ./deploy/freeradius/mods-available-sql:/etc/raddb/mods-available/sql:ro
+      - ./deploy/freeradius/dictionary.mikrotik:/etc/raddb/dictionary.mikrotik:ro
+      - ./deploy/freeradius/dictionary:/etc/raddb/dictionary:ro
+    environment:
+      RADIUS_DB_HOST: db
+      RADIUS_DB_NAME: lipawifi
+      RADIUS_DB_USER: lipawifi
+      RADIUS_DB_PASSWORD: ${POSTGRES_PASSWORD:-lipawifi_dev}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "43127:43127"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
