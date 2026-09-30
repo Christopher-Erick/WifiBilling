@@ -1,8 +1,8 @@
 # LipaWiFi
 
-Open-source **MikroTik HotSpot billing** for Kenya. Customers pick a package, pay with **M-Pesa STK Push** (Paybill C2B is also supported), and receive **FreeRADIUS** credentials. Expiry revokes access.
+Open-source **Wi-Fi billing** for Kenya. Customers pick a package and **Pay with M-Pesa** (STK Push). Money settles to the **Equity Bank account** linked to your Safaricom Paybill. Manual Paybill (number + account + amount) stays on screen as a fallback. Expiry takes access away.
 
-This is not daloRADIUS and not a single-router appliance. Every payment and subscription belongs to a `mikrotik_devices` row.
+This is not daloRADIUS and not a single-router appliance. Every payment belongs to a registered site.
 
 ## Local demo (this environment)
 
@@ -25,25 +25,24 @@ npm run worker
 - Health: [http://127.0.0.1:43127/api/v1/public/health](http://127.0.0.1:43127/api/v1/public/health)
 
 **Demo operator:** `admin@lipawifi.local` / `ChangeMe_Admin1!`  
-**M-Pesa:** `MPESA_PROVIDER=mock` — use **Complete demo payment** (or wait a few seconds if auto-pay is on). No real money moves.
+**M-Pesa:** `MPESA_PROVIDER=mock` — **Pay with M-Pesa**, then **Complete demo payment** on the status screen. Paybill details stay visible. No real money moves.
 
-Captive-portal query string is preserved. Example:
-
-```
-http://127.0.0.1:43127/portal?mac=4C:5E:0C:11:22:33&ip=10.5.50.20&link-login-only=http://10.5.50.1/login&identity=westlands-cafe
-```
-
-## Docker Compose (production-shaped)
+## Docker Compose
 
 ```bash
 cp .env.example .env
-# set SESSION_SECRET, INTERNAL_API_TOKEN, DATABASE_URL, POSTGRES_PASSWORD
+# local demo: leave MPESA_PROVIDER=mock
+# production: NODE_ENV=production, MPESA_PROVIDER=daraja, APP_URL=https://…, MPESA_PAYBILL=…
 docker compose up --build
 ```
 
-Services: `app`, `db`, `redis`, `freeradius`, `worker`, `scheduler`, `nginx`, `migrate`.
+Web UI: **port 43127**. Health and ready go through nginx. Seed once:
 
-The web UI is bound to **port 43127** (not 3000 / 5173 / 8080).
+```bash
+docker compose exec app npx tsx prisma/seed.ts
+```
+
+Cloudflare Tunnel (optional): set `CLOUDFLARE_TUNNEL_TOKEN` and `docker compose --profile cloudflare up -d`.
 
 ## Tests
 
@@ -51,7 +50,7 @@ The web UI is bound to **port 43127** (not 3000 / 5173 / 8080).
 npm test
 ```
 
-Coverage includes Kenyan phone normalization, the payment state machine, duplicate STK callbacks, amount mismatch, EXTEND vs QUEUE, expiry RADIUS revoke, and RBAC.
+Coverage includes Kenyan phones, the payment state machine, Paybill C2B confirm/duplicate/amount-mismatch, STK duplicate/amount mismatch, EXTEND vs QUEUE, expiry, and RBAC.
 
 ## Docs
 
@@ -59,7 +58,7 @@ Coverage includes Kenyan phone normalization, the payment state machine, duplica
 - [Install](docs/install.md)
 - [MikroTik](docs/mikrotik.md)
 - [FreeRADIUS](docs/freeradius.md)
-- [M-Pesa](docs/mpesa.md)
+- [M-Pesa Paybill](docs/mpesa.md)
 - [Deployment](docs/deployment.md)
 - [Backup](docs/backup.md)
 - [Troubleshooting](docs/troubleshooting.md)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -12,6 +12,7 @@ export default function SettingsPage() {
     support_phone: "",
     default_renewal_mode: "EXTEND",
     paybill_number: "",
+    stk_enabled: true,
   });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export default function SettingsPage() {
           support_phone: String(d.settings.support_phone ?? ""),
           default_renewal_mode: String(d.settings.default_renewal_mode ?? "EXTEND"),
           paybill_number: String(d.settings.paybill_number ?? ""),
+          stk_enabled: d.settings.stk_enabled !== false && d.settings.stk_enabled !== "false",
         }));
       })
       .catch((e) => setError(e.message));
@@ -35,6 +37,7 @@ export default function SettingsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    setError(null);
     const res = await fetch("/api/v1/admin/settings", {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -53,6 +56,10 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Operator defaults</CardTitle>
+          <CardDescription>
+            Customers pay with an M-Pesa PIN prompt (STK). The same Paybill number is shown as a manual fallback.
+            Safaricom settles that Paybill to the Equity Bank account linked on the shortcode.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid max-w-lg gap-3" onSubmit={(e) => void save(e)}>
@@ -65,8 +72,16 @@ export default function SettingsPage() {
               <Input value={form.support_phone} onChange={(e) => setForm({ ...form, support_phone: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label>Paybill number</Label>
-              <Input value={form.paybill_number} onChange={(e) => setForm({ ...form, paybill_number: e.target.value })} />
+              <Label>M-Pesa Paybill number</Label>
+              <Input
+                value={form.paybill_number}
+                onChange={(e) => setForm({ ...form, paybill_number: e.target.value })}
+                placeholder="Shown on the customer portal"
+              />
+              <p className="text-xs text-muted-foreground">
+                STK Push uses this shortcode (`MPESA_PAYBILL`, falling back to `MPESA_SHORTCODE`). Customers also type
+                it if they pay Lipa na M-Pesa → Pay Bill by hand.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Default renewal</Label>
@@ -75,10 +90,19 @@ export default function SettingsPage() {
                 value={form.default_renewal_mode}
                 onChange={(e) => setForm({ ...form, default_renewal_mode: e.target.value })}
               >
-                <option value="EXTEND">EXTEND</option>
-                <option value="QUEUE">QUEUE</option>
+                <option value="EXTEND">Add time on the same session</option>
+                <option value="QUEUE">Start after the current session</option>
               </select>
             </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.stk_enabled}
+                onChange={(e) => setForm({ ...form, stk_enabled: e.target.checked })}
+              />
+              Send the M-Pesa PIN prompt (STK). Keep this on — it is the customer path. Paybill details stay visible as
+              a manual fallback.
+            </label>
             <Button type="submit">Save settings</Button>
           </form>
         </CardContent>

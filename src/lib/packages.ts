@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { rateLimitFromKbps } from "@/lib/utils";
+import { rateLimitFromKbps, formatDuration, formatSpeedKbps } from "@/lib/utils";
 
 export type PublicPackage = {
   id: string;
@@ -7,6 +7,8 @@ export type PublicPackage = {
   description: string;
   priceKes: number;
   durationSeconds: number;
+  durationLabel: string;
+  speedLabel: string;
   rateLimit: string;
   renewalMode: string;
 };
@@ -22,6 +24,8 @@ export async function listPublicPackages(): Promise<PublicPackage[]> {
     description: p.description,
     priceKes: p.priceKes,
     durationSeconds: p.durationSeconds,
+    durationLabel: formatDuration(p.durationSeconds),
+    speedLabel: formatSpeedKbps(p.downloadKbps, p.uploadKbps),
     rateLimit: rateLimitFromKbps(p.downloadKbps, p.uploadKbps),
     renewalMode: p.renewalMode,
   }));

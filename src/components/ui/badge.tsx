@@ -19,7 +19,7 @@ export function Badge({
 
 export function statusVariant(status: string) {
   if (["ACTIVATED", "ACTIVE", "PAID"].includes(status)) return "success" as const;
-  if (["STK_SENT", "ACTIVATING", "QUEUED", "PENDING"].includes(status)) return "warning" as const;
+  if (["STK_SENT", "ACTIVATING", "QUEUED", "PENDING", "INITIATED"].includes(status)) return "warning" as const;
   if (["FAILED", "STK_FAILED", "ACTIVATION_FAILED", "REVOKED", "EXPIRED"].includes(status)) return "danger" as const;
   return "muted" as const;
 }

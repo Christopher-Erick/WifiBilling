@@ -26,6 +26,18 @@ services:
       retries: 10
     restart: unless-stopped
 
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
   app:
     build: .
     env_file: .env
@@ -39,21 +51,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     expose:
       - "43127"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:43127/api/v1/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
     restart: unless-stopped
-
-  migrate:
-    build: .
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
-      REDIS_URL: redis://redis:6379
-    command: ["npx", "prisma", "migrate", "deploy"]
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: on-failure
 
   worker:
     build: .
@@ -67,6 +79,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   scheduler:
@@ -81,16 +95,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   freeradius:
-    image: freeradius/freeradius-server:3.2.3
-    command: ["-f", "-l", "stdout"]
-    volumes:
-      - ./deploy/freeradius/clients.conf:/etc/raddb/clients.conf:ro
-      - ./deploy/freeradius/mods-available-sql:/etc/raddb/mods-available/sql:ro
-      - ./deploy/freeradius/dictionary.mikrotik:/etc/raddb/dictionary.mikrotik:ro
-      - ./deploy/freeradius/dictionary:/etc/raddb/dictionary:ro
+    build: ./deploy/freeradius
     environment:
       RADIUS_DB_HOST: db
       RADIUS_DB_NAME: lipawifi
@@ -99,9 +109,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "pidof radiusd || pidof freeradius || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+      start_period: 20s
     restart: unless-stopped
 
   nginx:
@@ -111,7 +129,25 @@ services:
     ports:
       - "43127:43127"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:43127/api/v1/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional: docker compose --profile cloudflare up -d
+  # Requires CLOUDFLARE_TUNNEL_TOKEN in .env (named tunnel, public HTTPS hostname).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["cloudflare"]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      nginx:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

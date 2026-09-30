@@ -1,4 +1,4 @@
-import { getEnv } from "@/lib/env";
+import { getEnv, mpesaPaybillShortcode } from "@/lib/env";
 import type { MpesaProvider, StkPushInput, StkPushResult, StkQueryResult } from "@/lib/mpesa/types";
 import { createLogger } from "@/lib/logger";
 
@@ -43,19 +43,20 @@ export const darajaProvider: MpesaProvider = {
   name: "daraja",
   async stkPush(input: StkPushInput): Promise<StkPushResult> {
     const env = getEnv();
+    const shortcode = mpesaPaybillShortcode();
     const ts = timestamp();
     const token = await accessToken();
     const res = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        BusinessShortCode: env.MPESA_SHORTCODE,
-        Password: password(env.MPESA_SHORTCODE, env.MPESA_PASSKEY, ts),
+        BusinessShortCode: shortcode,
+        Password: password(shortcode, env.MPESA_PASSKEY, ts),
         Timestamp: ts,
         TransactionType: "CustomerPayBillOnline",
         Amount: input.amountKes,
         PartyA: input.phone,
-        PartyB: env.MPESA_SHORTCODE,
+        PartyB: shortcode,
         PhoneNumber: input.phone,
         CallBackURL: input.callbackUrl,
         AccountReference: input.accountReference.slice(0, 12),
@@ -77,14 +78,15 @@ export const darajaProvider: MpesaProvider = {
   },
   async queryStk(checkoutRequestId: string): Promise<StkQueryResult> {
     const env = getEnv();
+    const shortcode = mpesaPaybillShortcode();
     const ts = timestamp();
     const token = await accessToken();
     const res = await fetch(`${baseUrl()}/mpesa/stkpushquery/v1/query`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        BusinessShortCode: env.MPESA_SHORTCODE,
-        Password: password(env.MPESA_SHORTCODE, env.MPESA_PASSKEY, ts),
+        BusinessShortCode: shortcode,
+        Password: password(shortcode, env.MPESA_PASSKEY, ts),
         Timestamp: ts,
         CheckoutRequestID: checkoutRequestId,
       }),

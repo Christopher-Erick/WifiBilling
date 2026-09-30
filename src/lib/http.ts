@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { AuthError } from "@/lib/auth";
 import { PhoneError } from "@/lib/phone";
 import { IllegalTransitionError } from "@/lib/payments/machine";
+import { PaymentError } from "@/lib/payments/errors";
 import { createLogger } from "@/lib/logger";
 import { getEnv } from "@/lib/env";
 import { nanoid } from "nanoid";
@@ -22,7 +23,7 @@ export function errorResponse(err: unknown, requestId: string) {
   if (err instanceof AuthError) {
     return json({ error: err.message, requestId }, { status: err.status, requestId });
   }
-  if (err instanceof PhoneError || err instanceof IllegalTransitionError) {
+  if (err instanceof PhoneError || err instanceof IllegalTransitionError || err instanceof PaymentError) {
     return json({ error: err.message, requestId }, { status: 400, requestId });
   }
   if (err instanceof ZodError) {

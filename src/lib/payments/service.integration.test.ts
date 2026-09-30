@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "argon2";
-import { applyStkCallback, initiateStkPayment, mockSuccessCallback, queryPendingStk } from "@/lib/payments/service";
+import { applyStkCallback, applyC2bConfirmation, initiateStkPayment, initiateCustomerPayment, mockC2bConfirmation, mockSuccessCallback, queryPendingStk } from "@/lib/payments/service";
 import { expireDueSubscriptions } from "@/lib/subscriptions";
 import { hasPermission } from "@/lib/rbac";
 import { resetEnvCache } from "@/lib/env";
@@ -224,5 +224,97 @@ describe("payments + subscriptions integration", () => {
     await queryPendingStk(prisma);
     const after = await prisma.payment.findUnique({ where: { id: started.payment.id } });
     expect(after?.status).toBe("STK_SENT");
+  });
+
+  it("activates Wi-Fi from a Paybill C2B confirmation on the account reference", async () => {
+    const started = await initiateCustomerPayment(prisma, {
+      phone: "0712000010",
+      packageId: pkgId,
+      deviceId,
+      hotspot: {},
+      method: "paybill",
+    });
+    expect(started.payment.status).toBe("INITIATED");
+    expect(started.payment.accountReference).toMatch(/^LW[A-Z2-9]{8}$/);
+    expect(started.payment.channel).toBe("C2B_PAYBILL");
+
+    const first = await applyC2bConfirmation(
+      prisma,
+      mockC2bConfirmation({
+        transId: "QK123PAYBILL1",
+        amountKes: started.payment.amountKes,
+        phone: started.payment.phone,
+        accountReference: started.payment.accountReference!,
+        paybillNumber: "174379",
+      }),
+    );
+    expect(first.duplicate).toBe(false);
+    expect(first.unmatched).toBe(false);
+    expect(first.status).toBe("ACTIVATED");
+
+    const second = await applyC2bConfirmation(
+      prisma,
+      mockC2bConfirmation({
+        transId: "QK123PAYBILL1",
+        amountKes: started.payment.amountKes,
+        phone: started.payment.phone,
+        accountReference: started.payment.accountReference!,
+        paybillNumber: "174379",
+      }),
+    );
+    expect(second.duplicate).toBe(true);
+    expect(await prisma.payment.count({ where: { id: started.payment.id } })).toBe(1);
+  });
+
+  it("rejects Paybill amount mismatch and does not grant access", async () => {
+    const started = await initiateCustomerPayment(prisma, {
+      phone: "0712000011",
+      packageId: pkgId,
+      deviceId,
+      hotspot: {},
+      method: "paybill",
+    });
+    const result = await applyC2bConfirmation(
+      prisma,
+      mockC2bConfirmation({
+        transId: "QK123WRONGAMT",
+        amountKes: started.payment.amountKes + 10,
+        phone: started.payment.phone,
+        accountReference: started.payment.accountReference!,
+        paybillNumber: "174379",
+      }),
+    );
+    expect(result.status).toBe("FAILED");
+    const payment = await prisma.payment.findUnique({
+      where: { id: started.payment.id },
+      include: { subscription: true },
+    });
+    expect(payment?.subscription).toBeNull();
+    expect(payment?.status).toBe("FAILED");
+    expect(payment?.resultCode).toBe("AMOUNT_MISMATCH");
+  });
+
+  it("does not treat a typed or unknown Paybill account as paid", async () => {
+    const started = await initiateCustomerPayment(prisma, {
+      phone: "0712000012",
+      packageId: pkgId,
+      deviceId,
+      hotspot: {},
+      method: "paybill",
+    });
+    const result = await applyC2bConfirmation(
+      prisma,
+      mockC2bConfirmation({
+        transId: "QK123UNKNOWN1",
+        amountKes: started.payment.amountKes,
+        phone: started.payment.phone,
+        accountReference: "LWFAKEFAKE",
+        paybillNumber: "174379",
+      }),
+    );
+    expect(result.unmatched).toBe(true);
+    expect(result.paymentId).toBeNull();
+    const payment = await prisma.payment.findUnique({ where: { id: started.payment.id } });
+    expect(payment?.status).toBe("INITIATED");
   });
 });

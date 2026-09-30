@@ -2,8 +2,8 @@ node_modules
 .next
 .git
 .env
-.env.local
+.env.*
+!.env.example
 coverage
-tmp-scaffold
-*.md
-!README.md
+*.log
+agent-tools

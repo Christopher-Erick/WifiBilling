@@ -1,33 +1,47 @@
 # M-Pesa (Daraja)
 
-Preferred path: **Lipa Na M-Pesa Online (STK Push)** `CustomerPayBillOnline`.  
-Second path: **C2B Paybill** confirmation webhook.
+The customer path is **Lipa Na M-Pesa Online (STK Push)** `CustomerPayBillOnline` against the **same Paybill shortcode** (`MPESA_PAYBILL`, else `MPESA_SHORTCODE`). Safaricom settles that Paybill to the **Equity Bank account linked to the shortcode**. LipaWiFi never holds bank credentials.
+
+The portal **Pay with M-Pesa** button sends the PIN prompt. Paybill number, account (`LW…`), and amount stay visible as **or pay manually**. Typed account numbers are **not** paid.
 
 ## Environments
 
 | `MPESA_PROVIDER` | `MPESA_ENV` | Behaviour |
 |---|---|---|
-| `mock` | any | No Safaricom calls. Portal “Complete demo payment”. Auto-query can complete after ~2.5s if `MPESA_MOCK_AUTO_PAY=true`. **Rejected when `NODE_ENV=production`.** |
+| `mock` | any | No Safaricom calls. Portal sends a mock STK, shows Paybill fallback, and **Complete demo payment**. **Rejected when `NODE_ENV=production`.** |
 | `daraja` | `sandbox` | `https://sandbox.safaricom.co.ke` |
 | `daraja` | `production` | `https://api.safaricom.co.ke` |
 
-## STK Push
+Production must use `MPESA_PROVIDER=daraja` and `NODE_ENV=production`. Do not invent live credentials — set them in `.env` and Admin → Settings.
 
-`src/lib/mpesa/daraja.ts` implements OAuth, password (`base64(shortcode+passkey+timestamp)`), processrequest, and stkpushquery.
+## STK Push (primary)
+
+`src/lib/mpesa/daraja.ts` uses `MPESA_PAYBILL` (fallback `MPESA_SHORTCODE`) for `BusinessShortCode` and `PartyB`.
 
 Callback URL: `POST /api/v1/webhooks/mpesa/stk`
 
-Idempotency key: `CheckoutRequestID` unique on `payments`. Duplicate PAID callbacks return 200 and do not double-activate.
+Idempotency: `CheckoutRequestID` unique on `payments`. Duplicate PAID callbacks return 200 and do not double-activate.
 
-Amount and MSISDN in callback metadata must match the payment row or the payment is `FAILED` (amount mismatch) — no RADIUS.
+Amount mismatch fails the payment — no access. If the customer cancels the prompt they can still pay the same order with Paybill.
 
-## Paybill C2B
+## Paybill C2B (manual fallback)
 
-- Validation: `POST /api/v1/webhooks/mpesa/c2b/validation` (always accept)
-- Confirmation: `POST /api/v1/webhooks/mpesa/c2b/confirmation`
+Configure:
 
-`TransID` is unique. Matching is by pending payment for that MSISDN+amount, or account reference `WIFI` + payment suffix.
+- `MPESA_PAYBILL` — shortcode for STK **and** the number customers type
+- Admin → Settings → **M-Pesa Paybill number**
+- Daraja C2B URLs (public HTTPS origin):
+  - Validation: `POST /api/v1/webhooks/mpesa/c2b/validation` (always accept)
+  - Confirmation: `POST /api/v1/webhooks/mpesa/c2b/confirmation`
+
+Each order gets `payments.accountReference` (`LW` + 8 characters). Confirmation matching is **BillRefNumber = account reference**. A random or mistyped reference does not mark any order paid.
+
+`TransID` is unique. Duplicate confirmations return 200. Amount mismatch → `FAILED`, no access.
+
+## Mock (local demo only)
+
+`MPESA_PROVIDER=mock` still shows **Complete demo payment** on the status screen. No real money moves.
 
 ## Secrets
 
-`MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY` live only in env / a secrets manager. Never commit them.
+`MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY` live only in env / a secrets manager. Never commit them. Never put live Daraja values in git.

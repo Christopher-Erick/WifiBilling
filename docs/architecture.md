@@ -18,11 +18,12 @@ LipaWiFi is a Next.js App Router application plus Node worker/scheduler processe
 
 1. MikroTik HotSpot redirects the client to `/portal` with `mac`, `ip`, `chap-id`, `chap-challenge`, `link-login-only`, `dst`, `identity`, …
 2. Customer selects a package and enters a Kenyan MSISDN (stored as `254XXXXXXXXX`).
-3. `POST /api/v1/customer/payments` creates a payment in `INITIATED`, sends Daraja STK Push (or mock), moves to `STK_SENT`.
-4. Safaricom calls `POST /api/v1/webhooks/mpesa/stk`. Duplicate `CheckoutRequestID`s are no-ops.
-5. On verified amount, status becomes `PAID` → `ACTIVATING` → `ACTIVATED`. RADIUS rows are written for the **device that owns the session**.
-6. Portal shows credentials and POSTs to MikroTik `link-login-only` (CHAP-hashed when `chap-id` is present).
-7. Scheduler expires `ACTIVE` subscriptions past `expires_at`, deletes RADIUS rows, and promotes `QUEUED` subs.
+3. `POST /api/v1/customer/payments` (default `method=stk`) creates the order with account reference `LW…` and sends STK Push to the Paybill shortcode.
+4. Portal shows **Pay with M-Pesa** (PIN prompt) and **or pay manually** (Paybill number + account + amount). Typed references are not payment.
+5. Safaricom calls `POST /api/v1/webhooks/mpesa/stk` or `…/c2b/confirmation`. Duplicates are no-ops.
+6. On verified amount, status becomes `PAID` → `ACTIVATING` → `ACTIVATED`. Access is written for the **site that owns the session**.
+7. Portal shows **Connect me now** (posts to the router login URL when present).
+8. Scheduler expires `ACTIVE` subscriptions past `expires_at`, deletes access rows, and promotes `QUEUED` subs.
 
 ## Multi-router
 
@@ -31,7 +32,7 @@ LipaWiFi is a Next.js App Router application plus Node worker/scheduler processe
 ## API split
 
 - `/api/v1/public` — health, ready, packages, OpenAPI
-- `/api/v1/customer` — STK initiate, poll, confirm access
+- `/api/v1/customer` — STK initiate (Paybill fallback on the same order), poll, confirm access
 - `/api/v1/admin` — RBAC session cookie
 - `/api/v1/internal` — worker token
 - `/api/v1/webhooks` — Daraja STK + C2B

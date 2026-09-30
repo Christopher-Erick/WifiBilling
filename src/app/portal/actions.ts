@@ -2,9 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { initiateStkPayment, applyStkCallback, mockSuccessCallback } from "@/lib/payments/service";
+import { initiateCustomerPayment, applyC2bConfirmation, mockC2bConfirmation } from "@/lib/payments/service";
 import { pickHotspotParams, HOTSPOT_PARAM_KEYS } from "@/lib/hotspot";
 import { isMockMpesa } from "@/lib/env";
+import { getPortalConfig } from "@/lib/settings";
 
 export async function startPaymentAction(_prev: { error?: string } | undefined, formData: FormData) {
   const phone = String(formData.get("phone") || "");
@@ -16,10 +17,11 @@ export async function startPaymentAction(_prev: { error?: string } | undefined, 
   }
   let paymentId: string;
   try {
-    const result = await initiateStkPayment(prisma, {
+    const result = await initiateCustomerPayment(prisma, {
       phone,
       packageId,
       hotspot: pickHotspotParams(raw),
+      method: "stk",
     });
     paymentId = result.payment.id;
   } catch (err) {
@@ -33,27 +35,22 @@ export async function completeMockPaymentAction(formData: FormData) {
     throw new Error("Mock payment is disabled");
   }
   const paymentId = String(formData.get("paymentId") || "");
-  let payment = await prisma.payment.findUnique({ where: { id: paymentId } });
-  if (!payment?.checkoutRequestId) {
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment?.accountReference) {
     throw new Error("Payment not found");
   }
   if (payment.status === "ACTIVATED") {
     redirect(`/portal/status/${paymentId}`);
   }
-  if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "STK_FAILED") {
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: "STK_SENT", failureReason: null, resultCode: null, resultDesc: null },
-    });
-  }
-  await applyStkCallback(
+  const config = await getPortalConfig(prisma);
+  await applyC2bConfirmation(
     prisma,
-    mockSuccessCallback(
-      payment.checkoutRequestId,
-      payment.amountKes,
-      payment.phone,
-      payment.merchantRequestId || "mock",
-    ),
+    mockC2bConfirmation({
+      amountKes: payment.amountKes,
+      phone: payment.phone,
+      accountReference: payment.accountReference,
+      paybillNumber: config.paybillNumber || "174379",
+    }),
   );
   redirect(`/portal/status/${paymentId}`);
 }

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { errorResponse, json, requestIdFrom } from "@/lib/http";
 import { loginActionUrl, type HotspotParams } from "@/lib/hotspot";
 import { isMockMpesa } from "@/lib/env";
+import { getPortalConfig } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     });
     if (!payment) return json({ error: "Not found", requestId }, { status: 404, requestId });
     const hotspot = (payment.hotspot ?? {}) as HotspotParams;
+    const config = await getPortalConfig(prisma);
     return json(
       {
         paymentId: payment.id,
@@ -22,7 +24,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         amountKes: payment.amountKes,
         phone: payment.phone,
         packageName: payment.package.name,
-        deviceName: payment.device.name,
+        durationSeconds: payment.package.durationSeconds,
+        accountReference: payment.accountReference,
+        paybillNumber: config.paybillNumber,
+        stkEnabled: config.stkEnabled,
+        brandName: config.brandName,
+        supportPhone: config.supportPhone,
         mock: isMockMpesa(),
         failureReason: payment.failureReason,
         credentials:

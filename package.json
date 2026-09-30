@@ -2,7 +2,7 @@
   "name": "lipawifi",
   "version": "1.0.0",
   "private": true,
-  "description": "Open-source MikroTik Wi-Fi billing with M-Pesa STK Push, FreeRADIUS, and an operator dashboard.",
+  "description": "Open-source Kenyan Wi-Fi billing with M-Pesa Paybill (Equity settlement), optional STK, FreeRADIUS, and an operator dashboard.",
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 43127",
     "build": "prisma generate && next build",
