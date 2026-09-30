@@ -313,11 +313,15 @@ export async function queryPendingStk(prisma: PrismaClient) {
         },
       });
       completed += 1;
-    } else if (result.resultCode === "1032" || result.resultCode === "1037" || result.resultCode === "1") {
+    } else if (
+      provider.name !== "mock" &&
+      (result.resultCode === "1032" || result.resultCode === "1037" || result.resultCode === "1") &&
+      Date.now() - p.createdAt.getTime() > 90_000
+    ) {
       assertTransition(p.status, "FAILED");
       await prisma.payment.update({
         where: { id: p.id },
-        data: { status: "FAILED", resultCode: result.resultCode, resultDesc: result.resultDesc },
+        data: { status: "FAILED", resultCode: result.resultCode, resultDesc: result.resultDesc, failureReason: result.resultDesc },
       });
     }
   }

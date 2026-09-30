@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "argon2";
-import { applyStkCallback, initiateStkPayment, mockSuccessCallback } from "@/lib/payments/service";
+import { applyStkCallback, initiateStkPayment, mockSuccessCallback, queryPendingStk } from "@/lib/payments/service";
 import { expireDueSubscriptions } from "@/lib/subscriptions";
 import { hasPermission } from "@/lib/rbac";
 import { resetEnvCache } from "@/lib/env";
@@ -211,5 +211,18 @@ describe("payments + subscriptions integration", () => {
   it("enforces READ_ONLY cannot write packages", () => {
     expect(hasPermission("READ_ONLY", "packages:write")).toBe(false);
     expect(hasPermission("ADMIN", "packages:write")).toBe(true);
+  });
+
+  it("does not fail mock STK_SENT payments when the worker queries status", async () => {
+    const started = await initiateStkPayment(prisma, {
+      phone: "0712000006",
+      packageId: pkgId,
+      deviceId,
+      hotspot: {},
+    });
+    expect(started.payment.status).toBe("STK_SENT");
+    await queryPendingStk(prisma);
+    const after = await prisma.payment.findUnique({ where: { id: started.payment.id } });
+    expect(after?.status).toBe("STK_SENT");
   });
 });

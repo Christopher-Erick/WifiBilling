@@ -22,7 +22,9 @@ export function createMockMpesa(autoPayDelayMs = 2500): MpesaProvider {
     async queryStk(checkoutRequestId: string): Promise<StkQueryResult> {
       const started = sentAt.get(checkoutRequestId);
       if (!started) {
-        return { resultCode: "1032", resultDesc: "Unknown checkout request", checkoutRequestId };
+        // Worker is a separate process and does not share this map.
+        // Never treat "unknown" as a customer cancel (1032).
+        return { resultCode: "4999", resultDesc: "The transaction is being processed", checkoutRequestId };
       }
       if (Date.now() - started < autoPayDelayMs) {
         return { resultCode: "4999", resultDesc: "The transaction is being processed", checkoutRequestId };

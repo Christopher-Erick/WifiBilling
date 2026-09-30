@@ -33,9 +33,18 @@ export async function completeMockPaymentAction(formData: FormData) {
     throw new Error("Mock payment is disabled");
   }
   const paymentId = String(formData.get("paymentId") || "");
-  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  let payment = await prisma.payment.findUnique({ where: { id: paymentId } });
   if (!payment?.checkoutRequestId) {
     throw new Error("Payment not found");
+  }
+  if (payment.status === "ACTIVATED") {
+    redirect(`/portal/status/${paymentId}`);
+  }
+  if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "STK_FAILED") {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: "STK_SENT", failureReason: null, resultCode: null, resultDesc: null },
+    });
   }
   await applyStkCallback(
     prisma,
