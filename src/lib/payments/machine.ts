@@ -15,9 +15,9 @@ export const PAYMENT_STATUSES = [
 export type PaymentStatusName = (typeof PAYMENT_STATUSES)[number];
 
 const ALLOWED: Record<PaymentStatusName, PaymentStatusName[]> = {
-  INITIATED: ["STK_SENT", "STK_FAILED", "CANCELLED"],
+  INITIATED: ["STK_SENT", "STK_FAILED", "CANCELLED", "PAID", "FAILED"],
   STK_SENT: ["PAID", "FAILED", "CANCELLED", "STK_FAILED"],
-  STK_FAILED: ["STK_SENT", "CANCELLED"],
+  STK_FAILED: ["STK_SENT", "CANCELLED", "PAID", "FAILED"],
   PAID: ["ACTIVATING"],
   FAILED: [],
   CANCELLED: [],

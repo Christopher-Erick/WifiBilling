@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LipaWiFi — MikroTik billing with M-Pesa",
-  description: "Pay for HotSpot access with M-Pesa STK Push. Built for Kenyan operators running MikroTik and FreeRADIUS.",
+  title: "LipaWiFi — Pay for Wi-Fi with M-Pesa",
+  description: "Pay for Wi-Fi with M-Pesa Paybill. Built for Kenyan operators.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

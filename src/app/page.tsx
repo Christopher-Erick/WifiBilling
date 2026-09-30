@@ -23,16 +23,16 @@ export default function HomePage() {
         <section className="max-w-2xl">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent">Open source · Kenya</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
-            HotSpot billing that actually waits for M-Pesa before granting Wi-Fi.
+            Wi-Fi billing that waits for M-Pesa Paybill before anyone gets online.
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
-            LipaWiFi is a MikroTik + FreeRADIUS platform with Daraja STK Push, an explicit payment state machine, and a
-            multi-router design. Customers pick a package, pay on their phone, and get RADIUS credentials. Expiry takes
+            LipaWiFi is for Kenyan operators. Customers pick a package, pay Lipa na M-Pesa Paybill (money settles to
+            the Equity account linked to your shortcode), and only then get access. Optional STK prompt. Expiry takes
             access away.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button size="lg" asChild>
-              <Link href="/portal">Try the captive portal</Link>
+              <Link href="/portal">Try the customer portal</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link href="/admin/login">Open the dashboard</Link>
@@ -45,9 +45,9 @@ export default function HomePage() {
         </section>
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { title: "STK first, then RADIUS", body: "Access is provisioned only after a verified, idempotent callback. Amount mismatches never go online." },
-            { title: "Many routers", body: "Every payment and subscription is tied to a mikrotik_devices row. NAS secrets stay per site." },
-            { title: "Reconciliation", body: "Operators see paid-not-activated and activated-not-confirmed queues and can retry activation." },
+            { title: "Paybill first", body: "Customers pay Lipa na M-Pesa Paybill. Wi-Fi turns on only after Safaricom confirms — typing the account number is not payment." },
+            { title: "Many Wi-Fi sites", body: "Every payment belongs to a site you register. Secrets stay per router." },
+            { title: "Reconciliation", body: "See paid-but-not-online queues and retry from the operator dashboard." },
           ].map((item) => (
             <div key={item.title} className="rounded-xl border border-border bg-card p-5">
               <h2 className="font-semibold">{item.title}</h2>

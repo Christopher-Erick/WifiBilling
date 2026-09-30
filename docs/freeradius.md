@@ -11,23 +11,26 @@ On activation:
 
 On expiry or revoke those rows are deleted.
 
-Each `mikrotik_devices` host is upserted into `nas` (`read_clients = yes`).
+Each registered site is upserted into `nas` (`read_clients = yes`).
 
 ## Compose
 
-`deploy/freeradius/mods-available-sql` points at the same Postgres as the app. `dictionary.mikrotik` includes `Mikrotik-Rate-Limit`.
+`deploy/freeradius` is a small image on top of `freeradius/freeradius-server:3.2.3`. It:
 
-Enable the SQL module in the image (symlink `mods-enabled/sql` → `mods-available/sql`, and authorize/accounting sections must call `sql`). The stock `freeradius/freeradius-server` image still needs `sites-enabled/default` to include `sql` in authorize/accounting — treat the shipped files as the contract and verify with `radtest` against a provisioned user.
+- Starts `radiusd -f -l stdout` (the previous Compose command `-f -l stdout` never launched radiusd and looped)
+- Enables the SQL module against the same Postgres as the app
+- Waits for `migrate` so RADIUS tables exist
+- Loads `dictionary.mikrotik` for `Mikrotik-Rate-Limit`
 
 ## Testing a user
 
-After a mock payment in the portal:
+After a demo payment in the portal:
 
 ```bash
 radtest wf2547… password RADIUS_HOST 0 testing123
 ```
 
-Username/password are shown on the portal success screen and stored on `subscriptions` (admin can read username; treat passwords as secrets).
+Username is shown on the portal success screen (treat the password as a secret).
 
 ## Accounting
 

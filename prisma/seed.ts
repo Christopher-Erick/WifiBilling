@@ -24,7 +24,7 @@ async function main() {
   const packages = [
     { name: "1 Hour", description: "Quick session for browsing and WhatsApp", priceKes: 20, durationSeconds: 3600, downloadKbps: 2048, uploadKbps: 1024, sortOrder: 10 },
     { name: "3 Hours", description: "Afternoon stretch with video-friendly speeds", priceKes: 30, durationSeconds: 3 * 3600, downloadKbps: 3072, uploadKbps: 1024, sortOrder: 20 },
-    { name: "1 Day", description: "Full day access on this HotSpot", priceKes: 50, durationSeconds: 86400, downloadKbps: 4096, uploadKbps: 2048, sortOrder: 30 },
+    { name: "1 Day", description: "Full day on this Wi-Fi", priceKes: 50, durationSeconds: 86400, downloadKbps: 4096, uploadKbps: 2048, sortOrder: 30 },
     { name: "1 Week", description: "Seven days, same router, auto-reconnect", priceKes: 200, durationSeconds: 7 * 86400, downloadKbps: 4096, uploadKbps: 2048, sortOrder: 40, renewalMode: "EXTEND" as RenewalMode },
     { name: "1 Month", description: "Best value for regulars at this site", priceKes: 500, durationSeconds: 30 * 86400, downloadKbps: 8192, uploadKbps: 4096, sortOrder: 50, renewalMode: "EXTEND" as RenewalMode },
   ];
@@ -89,6 +89,7 @@ async function main() {
           amountKes: pkg.priceKes,
           phone: customer.phone,
           idempotencyKey: "seed-paid-not-activated",
+          accountReference: "LWSEEDPAY1",
           mpesaReceipt: "SEEDPAID1",
           hotspot: { mac: "4C:5E:0C:00:00:01", ip: "10.5.50.20" },
           failureReason: null,
@@ -106,6 +107,7 @@ async function main() {
           amountKes: pkg.priceKes,
           phone: customer.phone,
           idempotencyKey: "seed-activated-not-confirmed",
+          accountReference: "LWSEEDACT1",
           mpesaReceipt: "SEEDACT1",
           hotspot: { mac: "4C:5E:0C:00:00:02", ip: "10.5.50.21" },
           activatedAt: new Date(),

@@ -9,6 +9,12 @@ describe("payment state machine", () => {
     expect(canTransition("ACTIVATING", "ACTIVATED")).toBe(true);
   });
 
+  it("allows Paybill C2B without STK", () => {
+    expect(canTransition("INITIATED", "PAID")).toBe(true);
+    expect(canTransition("STK_FAILED", "PAID")).toBe(true);
+    expect(canTransition("INITIATED", "FAILED")).toBe(true);
+  });
+
   it("rejects skipping paid", () => {
     expect(canTransition("STK_SENT", "ACTIVATED")).toBe(false);
     expect(() => assertTransition("STK_SENT", "ACTIVATED")).toThrow(IllegalTransitionError);

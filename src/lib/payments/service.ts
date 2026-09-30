@@ -2,6 +2,9 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { normalizeKenyanPhone } from "@/lib/phone";
 import { assertTransition, isCallbackDuplicate } from "@/lib/payments/machine";
+import { generateAccountReference, normalizeBillRef } from "@/lib/payments/account-ref";
+import { PaymentError } from "@/lib/payments/errors";
+import { getPortalConfig } from "@/lib/settings";
 import { getMpesaProvider } from "@/lib/mpesa";
 import { getEnv } from "@/lib/env";
 import { writeAudit } from "@/lib/audit";
@@ -11,30 +14,14 @@ import type { HotspotParams } from "@/lib/hotspot";
 import { createLogger } from "@/lib/logger";
 import { rateLimit } from "@/lib/redis";
 
+export { PaymentError } from "@/lib/payments/errors";
+
 const log = createLogger();
 
-export class PaymentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "PaymentError";
-  }
-}
-
-export async function initiateStkPayment(
+async function resolveDevice(
   prisma: PrismaClient,
-  input: {
-    phone: string;
-    packageId: string;
-    deviceId?: string;
-    hotspot: HotspotParams;
-    ip?: string;
-    requestId?: string;
-  },
+  input: { deviceId?: string; hotspot: HotspotParams },
 ) {
-  const phone = normalizeKenyanPhone(input.phone);
-  const pkg = await prisma.package.findUnique({ where: { id: input.packageId } });
-  if (!pkg || !pkg.isActive) throw new PaymentError("Package is not available");
-
   let device = input.deviceId
     ? await prisma.mikrotikDevice.findUnique({ where: { id: input.deviceId } })
     : null;
@@ -49,10 +36,30 @@ export async function initiateStkPayment(
   if (!device) {
     device = await prisma.mikrotikDevice.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } });
   }
-  if (!device) throw new PaymentError("No MikroTik device is configured");
+  if (!device) throw new PaymentError("This Wi-Fi site is not set up yet. Ask the attendant for help.");
+  return device;
+}
 
-  const rl = await rateLimit(`stk:${phone}`, 5, 10 * 60);
-  if (!rl.ok) throw new PaymentError("Too many payment attempts. Wait a few minutes.");
+export async function initiateCustomerPayment(
+  prisma: PrismaClient,
+  input: {
+    phone: string;
+    packageId: string;
+    deviceId?: string;
+    hotspot: HotspotParams;
+    ip?: string;
+    requestId?: string;
+    method?: "paybill" | "stk";
+  },
+) {
+  const phone = normalizeKenyanPhone(input.phone);
+  const pkg = await prisma.package.findUnique({ where: { id: input.packageId } });
+  if (!pkg || !pkg.isActive) throw new PaymentError("That package is not on sale right now.");
+
+  const device = await resolveDevice(prisma, input);
+
+  const rl = await rateLimit(`pay:${phone}`, 8, 10 * 60);
+  if (!rl.ok) throw new PaymentError("Too many tries. Wait a few minutes and try again.");
 
   const customer = await prisma.customer.upsert({
     where: { phone },
@@ -60,60 +67,128 @@ export async function initiateStkPayment(
     create: { phone },
   });
 
-  const env = getEnv();
-  const callbackUrl = env.MPESA_CALLBACK_URL || `${env.APP_URL}/api/v1/webhooks/mpesa/stk`;
-  const idempotencyKey = `stk:${phone}:${pkg.id}:${nanoid(8)}`;
-
+  const accountReference = generateAccountReference();
+  const method = input.method === "stk" ? "stk" : "paybill";
   const payment = await prisma.payment.create({
     data: {
       customerId: customer.id,
       packageId: pkg.id,
       deviceId: device.id,
-      channel: "STK_PUSH",
+      channel: "C2B_PAYBILL",
       status: "INITIATED",
       amountKes: pkg.priceKes,
       phone,
-      idempotencyKey,
+      accountReference,
+      idempotencyKey: `pay:${phone}:${pkg.id}:${nanoid(10)}`,
       hotspot: input.hotspot as Prisma.InputJsonValue,
     },
   });
 
+  await writeAudit({
+    actorType: "customer",
+    actorId: customer.id,
+    action: "payment.initiated",
+    entityType: "payment",
+    entityId: payment.id,
+    ip: input.ip,
+    requestId: input.requestId,
+    after: { accountReference, amountKes: pkg.priceKes, method },
+  });
+
+  if (method === "stk") {
+    return requestStkForPayment(prisma, payment.id, { ip: input.ip, requestId: input.requestId });
+  }
+
+  const config = await getPortalConfig(prisma);
+  return {
+    payment,
+    mock: config.mock,
+    customerMessage: "Pay with M-Pesa Paybill using the account number on the next screen.",
+    paybillNumber: config.paybillNumber,
+    accountReference,
+  };
+}
+
+/** @deprecated Use initiateCustomerPayment. Kept so existing STK tests keep working. */
+export async function initiateStkPayment(
+  prisma: PrismaClient,
+  input: {
+    phone: string;
+    packageId: string;
+    deviceId?: string;
+    hotspot: HotspotParams;
+    ip?: string;
+    requestId?: string;
+  },
+) {
+  return initiateCustomerPayment(prisma, { ...input, method: "stk" });
+}
+
+export async function requestStkForPayment(
+  prisma: PrismaClient,
+  paymentId: string,
+  meta?: { ip?: string; requestId?: string },
+) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { package: true, customer: true },
+  });
+  if (!payment) throw new PaymentError("Payment not found");
+  if (isCallbackDuplicate(payment.status)) {
+    return { payment, customerMessage: "This payment is already complete.", mock: getEnv().MPESA_PROVIDER === "mock" };
+  }
+  if (payment.status !== "INITIATED" && payment.status !== "STK_FAILED") {
+    throw new PaymentError("A prompt cannot be sent for this payment.");
+  }
+
+  const config = await getPortalConfig(prisma);
+  if (!config.stkEnabled) {
+    throw new PaymentError("The M-Pesa phone prompt is not available. Use Paybill instead.");
+  }
+
+  const env = getEnv();
+  const callbackUrl = env.MPESA_CALLBACK_URL || `${env.APP_URL}/api/v1/webhooks/mpesa/stk`;
+  const accountReference = payment.accountReference || generateAccountReference();
+
   try {
     const provider = getMpesaProvider();
     const stk = await provider.stkPush({
-      phone,
-      amountKes: pkg.priceKes,
-      accountReference: `WIFI${payment.id.slice(-8).toUpperCase()}`,
-      transactionDesc: pkg.name,
+      phone: payment.phone,
+      amountKes: payment.amountKes,
+      accountReference,
+      transactionDesc: payment.package.name,
       callbackUrl,
     });
-    assertTransition("INITIATED", "STK_SENT");
+    assertTransition(payment.status, "STK_SENT");
     const updated = await prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: "STK_SENT",
+        channel: "STK_PUSH",
+        accountReference,
         merchantRequestId: stk.merchantRequestId,
         checkoutRequestId: stk.checkoutRequestId,
+        failureReason: null,
       },
     });
     await writeAudit({
       actorType: "customer",
-      actorId: customer.id,
+      actorId: payment.customerId,
       action: "payment.stk_sent",
       entityType: "payment",
       entityId: payment.id,
-      ip: input.ip,
-      requestId: input.requestId,
-      after: { checkoutRequestId: stk.checkoutRequestId, amountKes: pkg.priceKes },
+      ip: meta?.ip,
+      requestId: meta?.requestId,
+      after: { checkoutRequestId: stk.checkoutRequestId, amountKes: payment.amountKes, accountReference },
     });
-    return { payment: updated, customerMessage: stk.customerMessage, mock: provider.name === "mock" };
+    return { payment: updated, customerMessage: stk.customerMessage, mock: provider.name === "mock", accountReference };
   } catch (err) {
-    assertTransition("INITIATED", "STK_FAILED");
+    assertTransition(payment.status, "STK_FAILED");
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: "STK_FAILED",
-        failureReason: err instanceof Error ? err.message : "STK failed",
+        failureReason: err instanceof Error ? err.message : "Could not send the M-Pesa prompt",
       },
     });
     throw err;
@@ -139,18 +214,18 @@ export async function applyStkCallback(
   }
 
   if (cb.ResultCode !== 0) {
-    assertTransition(payment.status, "FAILED");
+    assertTransition(payment.status, "STK_FAILED");
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
-        status: "FAILED",
+        status: "STK_FAILED",
         resultCode: String(cb.ResultCode),
         resultDesc: cb.ResultDesc,
         rawCallback: payload as unknown as Prisma.InputJsonValue,
         failureReason: cb.ResultDesc,
       },
     });
-    return { duplicate: false, paymentId: payment.id, status: "FAILED" };
+    return { duplicate: false, paymentId: payment.id, status: "STK_FAILED" };
   }
 
   const amount = Number(metadataValue(cb.CallbackMetadata?.Item, "Amount"));
@@ -227,44 +302,78 @@ export async function applyC2bConfirmation(
   payload: C2bConfirmation,
   requestId?: string,
 ) {
-  const receipt = payload.TransID;
+  const receipt = String(payload.TransID || "").trim();
+  if (!receipt) throw new PaymentError("Missing TransID");
+
   const existing = await prisma.payment.findFirst({ where: { mpesaReceipt: receipt } });
   if (existing) {
-    return { duplicate: true, paymentId: existing.id, status: existing.status };
+    return { duplicate: true, unmatched: false, paymentId: existing.id, status: existing.status };
   }
 
-  const phone = normalizeKenyanPhone(payload.MSISDN);
+  const ref = normalizeBillRef(payload.BillRefNumber);
   const amount = Math.round(Number(payload.TransAmount));
-  const ref = (payload.BillRefNumber || "").trim();
 
-  let payment = await prisma.payment.findFirst({
-    where: {
-      phone,
-      amountKes: amount,
-      status: { in: ["INITIATED", "STK_SENT", "STK_FAILED"] },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!payment && ref) {
-    payment = await prisma.payment.findFirst({
-      where: { id: { endsWith: ref.replace(/^WIFI/i, "") } },
+  if (!ref) {
+    await writeAudit({
+      actorType: "webhook",
+      action: "payment.c2b_unmatched",
+      entityType: "payment",
+      after: { receipt, amount, reason: "empty_bill_ref" },
+      requestId,
     });
+    return { duplicate: false, unmatched: true, paymentId: null, status: "UNMATCHED" };
   }
+
+  const payment = await prisma.payment.findFirst({
+    where: { accountReference: { equals: ref, mode: "insensitive" } },
+  });
 
   if (!payment) {
     await writeAudit({
       actorType: "webhook",
       action: "payment.c2b_unmatched",
       entityType: "payment",
-      after: { receipt, phone, amount, ref },
+      after: { receipt, amount, ref },
       requestId,
     });
-    throw new PaymentError("No matching pending payment for this Paybill deposit");
+    return { duplicate: false, unmatched: true, paymentId: null, status: "UNMATCHED" };
   }
 
   if (isCallbackDuplicate(payment.status)) {
-    return { duplicate: true, paymentId: payment.id, status: payment.status };
+    return { duplicate: true, unmatched: false, paymentId: payment.id, status: payment.status };
+  }
+
+  if (!Number.isFinite(amount) || amount !== payment.amountKes) {
+    assertTransition(payment.status, "FAILED");
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "FAILED",
+        channel: "C2B_PAYBILL",
+        mpesaReceipt: receipt,
+        resultCode: "AMOUNT_MISMATCH",
+        resultDesc: `Paybill amount ${amount} != ${payment.amountKes}`,
+        rawCallback: payload as unknown as Prisma.InputJsonValue,
+        failureReason: "Amount mismatch",
+      },
+    });
+    await writeAudit({
+      actorType: "webhook",
+      action: "payment.amount_mismatch",
+      entityType: "payment",
+      entityId: payment.id,
+      after: { amount, expected: payment.amountKes, ref, receipt },
+      requestId,
+    });
+    return { duplicate: false, unmatched: false, paymentId: payment.id, status: "FAILED" };
+  }
+
+  const config = await getPortalConfig(prisma);
+  if (config.paybillNumber && payload.BusinessShortCode) {
+    const got = String(payload.BusinessShortCode).trim();
+    if (got && got !== String(config.paybillNumber).trim()) {
+      log.warn({ got, expected: config.paybillNumber, paymentId: payment.id }, "c2b shortcode differs from configured paybill");
+    }
   }
 
   assertTransition(payment.status, "PAID");
@@ -279,8 +388,16 @@ export async function applyC2bConfirmation(
       rawCallback: payload as unknown as Prisma.InputJsonValue,
     },
   });
+  await writeAudit({
+    actorType: "webhook",
+    action: "payment.paid",
+    entityType: "payment",
+    entityId: payment.id,
+    after: { receipt, amount, ref, channel: "C2B_PAYBILL" },
+    requestId,
+  });
   await activatePayment(prisma, payment.id, requestId);
-  return { duplicate: false, paymentId: payment.id, status: "ACTIVATED" };
+  return { duplicate: false, unmatched: false, paymentId: payment.id, status: "ACTIVATED" };
 }
 
 export async function queryPendingStk(prisma: PrismaClient) {
@@ -318,10 +435,10 @@ export async function queryPendingStk(prisma: PrismaClient) {
       (result.resultCode === "1032" || result.resultCode === "1037" || result.resultCode === "1") &&
       Date.now() - p.createdAt.getTime() > 90_000
     ) {
-      assertTransition(p.status, "FAILED");
+      assertTransition(p.status, "STK_FAILED");
       await prisma.payment.update({
         where: { id: p.id },
-        data: { status: "FAILED", resultCode: result.resultCode, resultDesc: result.resultDesc, failureReason: result.resultDesc },
+        data: { status: "STK_FAILED", resultCode: result.resultCode, resultDesc: result.resultDesc, failureReason: result.resultDesc },
       });
     }
   }
@@ -354,5 +471,24 @@ export function mockSuccessCallback(checkoutRequestId: string, amountKes: number
         },
       },
     },
+  };
+}
+
+export function mockC2bConfirmation(input: {
+  transId?: string;
+  amountKes: number;
+  phone: string;
+  accountReference: string;
+  paybillNumber: string;
+}): C2bConfirmation {
+  return {
+    TransactionType: "Pay Bill",
+    TransID: input.transId || `MOCK${nanoid(8).toUpperCase()}`,
+    TransTime: new Date().toISOString().replace(/\D/g, "").slice(0, 14),
+    TransAmount: String(input.amountKes),
+    BusinessShortCode: input.paybillNumber,
+    BillRefNumber: input.accountReference,
+    MSISDN: input.phone,
+    FirstName: "Demo",
   };
 }

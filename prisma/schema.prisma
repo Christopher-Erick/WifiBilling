@@ -126,6 +126,7 @@ model Payment {
   status             PaymentStatus  @default(INITIATED)
   amountKes          Int
   phone              String
+  accountReference   String?        @unique
   merchantRequestId  String?
   checkoutRequestId  String?        @unique
   mpesaReceipt       String?        @unique

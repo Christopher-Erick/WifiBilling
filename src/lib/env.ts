@@ -14,10 +14,16 @@ const schema = z.object({
   MPESA_CONSUMER_KEY: z.string().optional().default(""),
   MPESA_CONSUMER_SECRET: z.string().optional().default(""),
   MPESA_SHORTCODE: z.string().default("174379"),
+  MPESA_PAYBILL: z.string().optional().default(""),
   MPESA_PASSKEY: z.string().optional().default(""),
   MPESA_CALLBACK_URL: z.string().optional().default(""),
   MPESA_C2B_CONFIRMATION_URL: z.string().optional().default(""),
   MPESA_C2B_VALIDATION_URL: z.string().optional().default(""),
+  MPESA_STK_ENABLED: z
+    .string()
+    .optional()
+    .default("true")
+    .transform((v) => v !== "false"),
   MPESA_MOCK_AUTO_PAY: z
     .string()
     .optional()

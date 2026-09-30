@@ -28,7 +28,7 @@ paths:
   /api/v1/customer/payments:
     post:
       tags: [customer]
-      summary: Start STK Push
+      summary: Create a Paybill order (optional STK via method=stk)
       requestBody:
         required: true
         content:
@@ -40,9 +40,10 @@ paths:
                 phone: { type: string }
                 packageId: { type: string }
                 deviceId: { type: string }
+                method: { type: string, enum: [paybill, stk] }
                 hotspot: { type: object }
       responses:
-        "200": { description: STK sent }
+        "200": { description: Order created with Paybill account reference }
   /api/v1/customer/payments/{id}:
     get:
       tags: [customer]

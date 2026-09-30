@@ -25,6 +25,16 @@ export function maskPhone(phone: string): string {
   return `${phone.slice(0, 4)}***${phone.slice(-4)}`;
 }
 
+export function formatSpeedKbps(downloadKbps: number, uploadKbps: number): string {
+  const fmt = (kbps: number) => {
+    if (kbps >= 1024 && kbps % 1024 === 0) return `${kbps / 1024} Mbps`;
+    if (kbps >= 1000 && kbps % 1000 === 0) return `${kbps / 1000} Mbps`;
+    if (kbps >= 1000) return `${(kbps / 1000).toFixed(1)} Mbps`;
+    return `${kbps} kbps`;
+  };
+  return `${fmt(downloadKbps)} down · ${fmt(uploadKbps)} up`;
+}
+
 export function rateLimitFromKbps(downloadKbps: number, uploadKbps: number): string {
   const fmt = (kbps: number) => {
     if (kbps >= 1000 && kbps % 1000 === 0) return `${kbps / 1000}M`;
