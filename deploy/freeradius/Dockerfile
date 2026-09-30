@@ -1,15 +1,25 @@
-FROM freeradius/freeradius-server:3.2.3
+FROM debian:bookworm-slim
 
-USER root
-COPY clients.conf /etc/raddb/clients.conf
-COPY dictionary.mikrotik /etc/raddb/dictionary.mikrotik
-COPY sql.conf /etc/raddb/mods-available/sql
-COPY entrypoint.sh /usr/local/bin/lipawifi-radius-entrypoint.sh
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      freeradius \
+      freeradius-postgresql \
+      freeradius-utils \
+      postgresql-client \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN set -eux; \
-  echo '$INCLUDE dictionary.mikrotik' >> /etc/raddb/dictionary; \
-  ln -sf /etc/raddb/mods-available/sql /etc/raddb/mods-enabled/sql; \
-  chmod +x /usr/local/bin/lipawifi-radius-entrypoint.sh
+ENV FREERADIUS_DIR=/etc/freeradius/3.0
 
-ENTRYPOINT ["/usr/local/bin/lipawifi-radius-entrypoint.sh"]
-CMD ["radiusd", "-f", "-l", "stdout"]
+COPY clients.conf ${FREERADIUS_DIR}/clients.conf
+COPY sql.conf ${FREERADIUS_DIR}/mods-available/sql
+COPY dictionary.mikrotik ${FREERADIUS_DIR}/dictionary.mikrotik
+COPY entrypoint.sh /usr/local/bin/radius-entrypoint.sh
+
+RUN ln -sfn ../mods-available/sql ${FREERADIUS_DIR}/mods-enabled/sql \
+  && grep -q dictionary.mikrotik ${FREERADIUS_DIR}/dictionary || echo '$INCLUDE dictionary.mikrotik' >> ${FREERADIUS_DIR}/dictionary \
+  && chmod 755 /usr/local/bin/radius-entrypoint.sh \
+  && chmod 640 ${FREERADIUS_DIR}/clients.conf ${FREERADIUS_DIR}/mods-available/sql \
+  && chown -R freerad:freerad ${FREERADIUS_DIR}
+
+EXPOSE 1812/udp 1813/udp
+ENTRYPOINT ["/usr/local/bin/radius-entrypoint.sh"]

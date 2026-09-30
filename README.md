@@ -29,20 +29,30 @@ npm run worker
 
 ## Docker Compose
 
+Local (mock M-Pesa, nginx mapped to **43127**):
+
 ```bash
 cp .env.example .env
-# local demo: leave MPESA_PROVIDER=mock
-# production: NODE_ENV=production, MPESA_PROVIDER=daraja, APP_URL=https://…, MPESA_PAYBILL=…
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile seed up --build
 ```
 
-Web UI: **port 43127**. Health and ready go through nginx. Seed once:
+Production-shaped (Daraja, `NODE_ENV=production`, nginx **80/443**):
 
 ```bash
-docker compose exec app npx tsx prisma/seed.ts
+cp .env.production.example .env
+# fill Paybill, Daraja keys, APP_URL — never invent live credentials
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
-Cloudflare Tunnel (optional): set `CLOUDFLARE_TUNNEL_TOKEN` and `docker compose --profile cloudflare up -d`.
+`LIPAWIFI_HTTP_PORT` defaults to 80 in Compose; `.env.example` sets **43127** for local demo. Do not publish 3000 / 5173 / 8080.
+
+Compose always overrides `DATABASE_URL` / `REDIS_URL` to `db` / `redis`. Seed:
+
+```bash
+docker compose --profile seed run --rm seed
+```
+
+Cloudflare Tunnel (optional): set `CLOUDFLARE_TUNNEL_TOKEN` and `docker compose --profile cloudflare up -d`. See [docs/cloudflare.md](docs/cloudflare.md).
 
 ## Tests
 
@@ -62,6 +72,7 @@ Coverage includes Kenyan phones, the payment state machine, Paybill C2B confirm/
 - [Deployment](docs/deployment.md)
 - [Backup](docs/backup.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Cloudflare](docs/cloudflare.md)
 - [OpenAPI](docs/openapi.yaml)
 
 ## License

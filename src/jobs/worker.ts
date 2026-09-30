@@ -1,11 +1,11 @@
 import "dotenv/config";
-import { runSchedulerTick } from "./runner";
+import { safeSchedulerTick } from "./runner";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger();
 
 log.info("worker started");
-void runSchedulerTick().catch((err) => log.error({ err }, "worker initial tick failed"));
+void safeSchedulerTick("worker-initial");
 setInterval(() => {
-  void runSchedulerTick().catch((err) => log.error({ err }, "worker tick failed"));
+  void safeSchedulerTick("worker");
 }, 15_000);

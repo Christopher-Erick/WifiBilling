@@ -6,6 +6,13 @@ import { withLock } from "@/lib/redis";
 
 const log = createLogger();
 
+function isDependencyError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /P1001|P1017|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|Can't reach database|Redis|Invalid environment|mock is not allowed|SESSION_SECRET|INTERNAL_API_TOKEN/i.test(
+    message,
+  );
+}
+
 export async function runSchedulerTick() {
   await withLock("scheduler", 50, async () => {
     const expired = await expireDueSubscriptions(prisma);
@@ -27,30 +34,28 @@ export async function runSchedulerTick() {
   });
 }
 
-export async function runWorkerLoop() {
-  log.info("worker listening for activation retries");
-  await runSchedulerTick();
+let failStreak = 0;
+
+export async function safeSchedulerTick(label: string) {
+  try {
+    await runSchedulerTick();
+    failStreak = 0;
+  } catch (err) {
+    failStreak += 1;
+    if (isDependencyError(err)) {
+      if (failStreak === 1 || failStreak % 20 === 0) {
+        log.warn(
+          { err: err instanceof Error ? err.message : err, failStreak, label },
+          "scheduler skipped; postgres or redis not ready",
+        );
+      }
+      return;
+    }
+    log.error({ err, label }, "scheduler tick failed");
+  }
 }
 
-if (require.main === module) {
-  const mode = process.argv[2] || "worker";
-  if (mode === "scheduler") {
-    const tick = async () => {
-      try {
-        await runSchedulerTick();
-      } catch (err) {
-        log.error({ err }, "scheduler tick failed");
-      }
-    };
-    void tick();
-    setInterval(() => void tick(), 30_000);
-  } else {
-    void runWorkerLoop().catch((err) => {
-      log.error({ err }, "worker failed");
-      process.exit(1);
-    });
-    setInterval(() => {
-      void runSchedulerTick().catch((err) => log.error({ err }, "worker tick failed"));
-    }, 15_000);
-  }
+export async function runWorkerLoop() {
+  log.info("worker listening for activation retries");
+  await safeSchedulerTick("worker");
 }

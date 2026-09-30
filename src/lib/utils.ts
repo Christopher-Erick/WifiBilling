@@ -20,6 +20,12 @@ export function formatDuration(seconds: number): string {
   return days === Math.floor(days) ? `${days} day${days === 1 ? "" : "s"}` : `${days.toFixed(1)} days`;
 }
 
+export function formatSpeed(downloadKbps: number): string {
+  if (downloadKbps >= 1000 && downloadKbps % 1000 === 0) return `Up to ${downloadKbps / 1000} Mbps`;
+  if (downloadKbps >= 1000) return `Up to ${(downloadKbps / 1000).toFixed(1)} Mbps`;
+  return `Up to ${downloadKbps} kbps`;
+}
+
 export function maskPhone(phone: string): string {
   if (phone.length < 8) return "***";
   return `${phone.slice(0, 4)}***${phone.slice(-4)}`;
