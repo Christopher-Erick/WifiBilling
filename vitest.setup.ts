@@ -1,12 +1,10 @@
-import { defineConfig } from "vitest/config";
-import tsconfigPaths from "vite-tsconfig-paths";
-
-export default defineConfig({
-  plugins: [tsconfigPaths()],
-  test: {
-    environment: "node",
-    fileParallelism: false,
-    setupFiles: ["./vitest.setup.ts"],
-    testTimeout: 30000,
-  },
-});
+process.env.NODE_ENV = "test";
+process.env.APP_URL = "http://127.0.0.1:43127";
+process.env.DATABASE_URL = "postgresql://lipawifi:lipawifi_dev@127.0.0.1:5432/lipawifi_test?schema=public";
+process.env.TEST_DATABASE_URL = process.env.DATABASE_URL;
+process.env.REDIS_URL = "redis://127.0.0.1:6379";
+process.env.SESSION_SECRET = "test-session-secret-32chars-minimum";
+process.env.INTERNAL_API_TOKEN = "test-internal-token";
+process.env.MPESA_PROVIDER = "mock";
+process.env.MPESA_MOCK_AUTO_PAY = "false";
+process.env.LOG_LEVEL = "silent";

@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "argon2";
@@ -64,10 +63,6 @@ describe("payments + subscriptions integration", () => {
 
   beforeAll(async () => {
     resetEnvCache();
-    execSync("npx prisma migrate deploy", {
-      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
-      stdio: "inherit",
-    });
     await prisma.$executeRawUnsafe("TRUNCATE TABLE subscriptions, payments, customers, packages, mikrotik_devices, admin_users, radcheck, radreply, audit_logs RESTART IDENTITY CASCADE");
     const seeded = await seedBase();
     pkgId = seeded.pkg.id;
