@@ -21,6 +21,8 @@ type Pkg = {
   rateLimit: string;
 };
 
+export function PortalClient({ initialPackages = [] }: { initialPackages?: Pkg[] }) {
+
 type PayStatus = {
   paymentId: string;
   status: string;
@@ -41,7 +43,6 @@ type PayStatus = {
   };
 };
 
-export function PortalClient() {
   const search = useSearchParams();
   const hotspot = useMemo(() => {
     const raw: Record<string, string> = {};
@@ -52,9 +53,10 @@ export function PortalClient() {
     return pickHotspotParams(raw);
   }, [search]);
 
-  const [packages, setPackages] = useState<Pkg[]>([]);
+  const [packages, setPackages] = useState<Pkg[]>(initialPackages);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [loadingPackages, setLoadingPackages] = useState(initialPackages.length === 0);
+  const [selected, setSelected] = useState<string | null>(initialPackages[0]?.id ?? null);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,14 +64,20 @@ export function PortalClient() {
   const [pay, setPay] = useState<PayStatus | null>(null);
 
   useEffect(() => {
+    if (initialPackages.length > 0) {
+      setLoadingPackages(false);
+      return;
+    }
     fetch("/api/v1/public/packages")
       .then((r) => r.json())
       .then((d) => {
-        setPackages(d.packages ?? []);
-        if (d.packages?.[0]) setSelected(d.packages[0].id);
+        const list = (d.packages ?? []) as Pkg[];
+        setPackages(list);
+        if (list[0]) setSelected(list[0].id);
       })
-      .catch(() => setLoadError("Could not load packages. Try again in a moment."));
-  }, []);
+      .catch(() => setLoadError("Could not load packages. Try again in a moment."))
+      .finally(() => setLoadingPackages(false));
+  }, [initialPackages.length]);
 
   useEffect(() => {
     if (!paymentId) return;
@@ -191,53 +199,73 @@ export function PortalClient() {
 
       {!pay && (
         <>
-          <div className="grid gap-3">
-            {packages.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelected(p.id)}
-                className={`rounded-xl border p-4 text-left transition ${
-                  selected === p.id ? "border-primary bg-white ring-2 ring-primary/30" : "border-border bg-card"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{p.name}</p>
-                    <p className="text-sm text-muted-foreground">{p.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatDuration(p.durationSeconds)} · {p.rateLimit}
-                    </p>
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Choose a package</h2>
+            {loadingPackages && (
+              <p className="rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
+                Loading packages…
+              </p>
+            )}
+            {!loadingPackages && packages.length === 0 && (
+              <p className="rounded-xl border border-dashed border-accent/40 bg-card p-4 text-sm">
+                No packages are on sale yet. Ask the operator to publish one in Admin → Packages.
+              </p>
+            )}
+            <div className="grid gap-3">
+              {packages.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelected(p.id)}
+                  className={`rounded-xl border p-4 text-left shadow-sm transition ${
+                    selected === p.id
+                      ? "border-primary bg-white ring-2 ring-primary/40"
+                      : "border-border bg-card hover:border-primary/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{p.name}</p>
+                      <p className="text-sm text-muted-foreground">{p.description}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatDuration(p.durationSeconds)} · {p.rateLimit}
+                      </p>
+                    </div>
+                    <p className="text-lg font-semibold text-primary">{formatKes(p.priceKes)}</p>
                   </div>
-                  <p className="text-lg font-semibold text-primary">{formatKes(p.priceKes)}</p>
-                </div>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
+          </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Smartphone className="h-4 w-4" /> M-Pesa number
-              </CardTitle>
-              <CardDescription>STK Push will appear on this phone. Safaricom, Airtel and Telkom Kenya numbers work.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                inputMode="tel"
-                placeholder="0712 345 678"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button className="w-full" size="lg" disabled={busy || !selected || phone.length < 9} onClick={() => void payNow()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Pay with M-Pesa
-              </Button>
-            </CardContent>
-          </Card>
+          {selected ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Smartphone className="h-4 w-4" /> M-Pesa number
+                </CardTitle>
+                <CardDescription>
+                  Paying for {packages.find((p) => p.id === selected)?.name ?? "selected package"}. STK Push will appear
+                  on this phone.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  inputMode="tel"
+                  placeholder="0712 345 678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <Button className="w-full" size="lg" disabled={busy || phone.length < 9} onClick={() => void payNow()}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Pay with M-Pesa
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       )}
 

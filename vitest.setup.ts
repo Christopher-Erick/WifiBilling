@@ -1,4 +1,4 @@
-process.env.NODE_ENV = "test";
+process.env["NODE_ENV"] = "test";
 process.env.APP_URL = "http://127.0.0.1:43127";
 process.env.DATABASE_URL = "postgresql://lipawifi:lipawifi_dev@127.0.0.1:5432/lipawifi_test?schema=public";
 process.env.TEST_DATABASE_URL = process.env.DATABASE_URL;

@@ -1,10 +1,14 @@
 import { Suspense } from "react";
 import { PortalClient } from "@/components/portal/portal-client";
+import { listPublicPackages } from "@/lib/packages";
 
-export default function PortalPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PortalPage() {
+  const packages = await listPublicPackages();
   return (
     <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Loading portal…</p>}>
-      <PortalClient />
+      <PortalClient initialPackages={packages} />
     </Suspense>
   );
 }
