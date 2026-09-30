@@ -37,13 +37,21 @@ Set `APP_URL` to the exact public origin (scheme + host) customers and operators
 
 Postgres is down or `DATABASE_URL` is wrong. Redis being down is reported but does not fail readiness.
 
-## Nginx 502 after recreating `app`
-
-Nginx must use Docker DNS (`resolver 127.0.0.11`) so `app` is re-resolved. That is the shipped `deploy/nginx/nginx.conf`. Do not switch back to a static `upstream` hostname.
-
 ## FreeRADIUS restart loop
 
-The stock image command `["-f", "-l", "stdout"]` is invalid (it never starts `radiusd`). Use the image built from `deploy/freeradius`. The SQL module is enabled there and waits for `migrate` so `nas` / `radcheck` tables exist. Check `docker compose logs freeradius`.
+Configs are **copied into** the Debian `deploy/freeradius` image. Do not bind-mount `raddb` from a Windows host (world-writable files make `freeradius` refuse to start).
+
+- Migrations not applied — Compose waits for `migrate`.
+- Missing PostgreSQL driver — the image installs `freeradius-postgresql`.
+- Check `docker compose logs freeradius`.
+
+## Nginx 502 after recreating `app`
+
+Nginx uses Docker DNS (`resolver 127.0.0.11 valid=10s`) and `proxy_pass` with a variable, so `app` is re-resolved. Nginx also waits until the app is healthy. If you still see 502, wait for the app healthcheck (`start_period` 40s).
+
+## Worker / scheduler log spam
+
+When Postgres or Redis is down they **warn** (throttled) and skip the tick. They do not `process.exit`. A bad production `.env` (weak `SESSION_SECRET`) is treated as “not ready”.
 
 ## Compose cannot reach Postgres / Redis
 

@@ -419,40 +419,55 @@ export async function queryPendingStk(prisma: PrismaClient) {
     take: 50,
     orderBy: { createdAt: "asc" },
   });
-  const provider = getMpesaProvider();
+  let provider;
+  try {
+    provider = getMpesaProvider();
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : err }, "skip STK query; M-Pesa provider not available");
+    return { scanned: pending.length, completed: 0 };
+  }
   let completed = 0;
   for (const p of pending) {
     if (!p.checkoutRequestId) continue;
-    const result = await provider.queryStk(p.checkoutRequestId);
-    if (result.resultCode === "0") {
-      await applyStkCallback(prisma, {
-        Body: {
-          stkCallback: {
-            MerchantRequestID: p.merchantRequestId || "",
-            CheckoutRequestID: p.checkoutRequestId,
-            ResultCode: 0,
-            ResultDesc: result.resultDesc,
-            CallbackMetadata: {
-              Item: [
-                { Name: "Amount", Value: p.amountKes },
-                { Name: "MpesaReceiptNumber", Value: `QRY-${p.id.slice(-8)}` },
-                { Name: "PhoneNumber", Value: Number(p.phone) },
-              ],
+    try {
+      const result = await provider.queryStk(p.checkoutRequestId);
+      if (result.resultCode === "0") {
+        await applyStkCallback(prisma, {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: p.merchantRequestId || "",
+              CheckoutRequestID: p.checkoutRequestId,
+              ResultCode: 0,
+              ResultDesc: result.resultDesc,
+              CallbackMetadata: {
+                Item: [
+                  { Name: "Amount", Value: p.amountKes },
+                  { Name: "MpesaReceiptNumber", Value: `QRY-${p.id.slice(-8)}` },
+                  { Name: "PhoneNumber", Value: Number(p.phone) },
+                ],
+              },
             },
           },
-        },
-      });
-      completed += 1;
-    } else if (
-      provider.name !== "mock" &&
-      (result.resultCode === "1032" || result.resultCode === "1037" || result.resultCode === "1") &&
-      Date.now() - p.createdAt.getTime() > 90_000
-    ) {
-      assertTransition(p.status, "STK_FAILED");
-      await prisma.payment.update({
-        where: { id: p.id },
-        data: { status: "STK_FAILED", resultCode: result.resultCode, resultDesc: result.resultDesc, failureReason: result.resultDesc },
-      });
+        });
+        completed += 1;
+      } else if (
+        provider.name !== "mock" &&
+        (result.resultCode === "1032" || result.resultCode === "1037" || result.resultCode === "1") &&
+        Date.now() - p.createdAt.getTime() > 90_000
+      ) {
+        assertTransition(p.status, "STK_FAILED");
+        await prisma.payment.update({
+          where: { id: p.id },
+          data: {
+            status: "STK_FAILED",
+            resultCode: result.resultCode,
+            resultDesc: result.resultDesc,
+            failureReason: result.resultDesc,
+          },
+        });
+      }
+    } catch (err) {
+      log.warn({ err, paymentId: p.id }, "STK query failed for payment");
     }
   }
   return { scanned: pending.length, completed };

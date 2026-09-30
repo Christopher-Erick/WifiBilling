@@ -10,6 +10,8 @@ export type PublicPackage = {
   durationLabel: string;
   speedLabel: string;
   rateLimit: string;
+  downloadKbps: number;
+  uploadKbps: number;
   renewalMode: string;
 };
 
@@ -27,6 +29,8 @@ export async function listPublicPackages(): Promise<PublicPackage[]> {
     durationLabel: formatDuration(p.durationSeconds),
     speedLabel: formatSpeedKbps(p.downloadKbps, p.uploadKbps),
     rateLimit: rateLimitFromKbps(p.downloadKbps, p.uploadKbps),
+    downloadKbps: p.downloadKbps,
+    uploadKbps: p.uploadKbps,
     renewalMode: p.renewalMode,
   }));
 }

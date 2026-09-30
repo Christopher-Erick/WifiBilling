@@ -2,9 +2,11 @@
 
 ## Recommended topology
 
-Internet → Cloudflare (HTTPS, orange cloud or Tunnel) → Nginx :43127 → Next.js  
+Internet → Cloudflare (HTTPS, orange cloud or Tunnel) → origin Nginx **:80/:443** → Next.js `:43127` (not published on the host)  
 MikroTik NAS → FreeRADIUS :1812/1813 → Postgres  
 Workers on the same Compose namespace as the app.
+
+Do **not** publish 3000, 5173, or 8080. Local demo maps `LIPAWIFI_HTTP_PORT=43127` → container 80.
 
 ## Production checklist
 
@@ -17,7 +19,14 @@ Workers on the same Compose namespace as the app.
 7. Daraja confirmation URL: `https://<APP_URL host>/api/v1/webhooks/mpesa/c2b/confirmation`
 8. Postgres backups scheduled
 9. Each router has its own RADIUS secret
-10. TLS at Cloudflare; origin may be HTTP on 43127 if you use a Tunnel or Flexible/Full as documented below
+10. TLS at Cloudflare Full (strict) with an Origin CA cert in the `nginxcerts` volume, or a Tunnel (see [cloudflare.md](cloudflare.md))
+11. `TRUST_PROXY=nginx` behind Compose Nginx. Do not blindly trust `X-Forwarded-*`.
+
+Production overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+```
 
 ## Cloudflare
 
@@ -39,13 +48,13 @@ Nginx re-resolves the `app` container via Docker DNS (`127.0.0.11`) so recreatin
 
 ## Health
 
-Through nginx on port **43127**:
+Through nginx (`LIPAWIFI_HTTP_PORT`, **80/443** in production, **43127** in `.env.example`):
 
 - Liveness: `GET /api/v1/public/health`
 - Readiness: `GET /api/v1/public/ready` (Postgres required; Redis reported)
 
 ## Images
 
-`Dockerfile` builds Next.js `output: "standalone"` plus Prisma client. Worker/scheduler reuse the image with `npx tsx src/jobs/*.ts`. FreeRADIUS is a small image under `deploy/freeradius` that enables SQL against the same Postgres.
+`Dockerfile` builds Next.js `output: "standalone"` plus Prisma client, with an image healthcheck on `/api/v1/public/health`. Worker/scheduler reuse the image with `/app/node_modules/.bin/tsx`. FreeRADIUS is the Debian image under `deploy/freeradius` (configs copied in).
 
-Do not publish 3000/5173/8080. Compose binds **43127**.
+Do not publish 3000/5173/8080. Compose publishes **80/443** (or `LIPAWIFI_HTTP_PORT`).

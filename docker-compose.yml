@@ -32,11 +32,24 @@ services:
     environment:
       DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
       REDIS_URL: redis://redis:6379
-    command: ["npx", "prisma", "migrate", "deploy"]
+    command: ["/app/node_modules/.bin/prisma", "migrate", "deploy"]
     depends_on:
       db:
         condition: service_healthy
-    restart: on-failure
+    restart: "no"
+
+  seed:
+    build: .
+    profiles: ["seed"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
+    command: ["/app/node_modules/.bin/tsx", "prisma/seed.ts"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
 
   app:
     build: .
@@ -44,8 +57,10 @@ services:
     environment:
       PORT: 43127
       HOSTNAME: 0.0.0.0
+      NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
       REDIS_URL: redis://redis:6379
+      TRUST_PROXY: ${TRUST_PROXY:-nginx}
     depends_on:
       db:
         condition: service_healthy
@@ -58,22 +73,25 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:43127/api/v1/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:43127/api/v1/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 45s
+      start_period: 40s
     restart: unless-stopped
 
   worker:
     build: .
     env_file: .env
     environment:
+      NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
       REDIS_URL: redis://redis:6379
-    command: ["npx", "tsx", "src/jobs/worker.ts"]
+    command: ["/app/node_modules/.bin/tsx", "src/jobs/worker.ts"]
     depends_on:
       db:
         condition: service_healthy
@@ -87,9 +105,10 @@ services:
     build: .
     env_file: .env
     environment:
+      NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
       REDIS_URL: redis://redis:6379
-    command: ["npx", "tsx", "src/jobs/scheduler.ts"]
+    command: ["/app/node_modules/.bin/tsx", "src/jobs/scheduler.ts"]
     depends_on:
       db:
         condition: service_healthy
@@ -103,6 +122,7 @@ services:
     build: ./deploy/freeradius
     environment:
       RADIUS_DB_HOST: db
+      RADIUS_DB_PORT: "5432"
       RADIUS_DB_NAME: lipawifi
       RADIUS_DB_USER: lipawifi
       RADIUS_DB_PASSWORD: ${POSTGRES_PASSWORD:-lipawifi_dev}
@@ -117,22 +137,25 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pidof radiusd || pidof freeradius || exit 1"]
       interval: 10s
-      timeout: 3s
-      retries: 8
+      timeout: 5s
+      retries: 12
       start_period: 20s
     restart: unless-stopped
 
   nginx:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    build: ./deploy/nginx
+    environment:
+      APP_HOSTNAME: ${APP_HOSTNAME:-localhost}
     ports:
-      - "43127:43127"
+      - "${LIPAWIFI_HTTP_PORT:-80}:80"
+      - "${LIPAWIFI_HTTPS_PORT:-443}:443"
+    volumes:
+      - nginxcerts:/etc/nginx/certs
     depends_on:
       app:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:43127/api/v1/public/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/api/v1/public/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 8
@@ -153,3 +176,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  nginxcerts:

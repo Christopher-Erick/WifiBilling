@@ -53,6 +53,8 @@ export const darajaProvider: MpesaProvider = {
         BusinessShortCode: shortcode,
         Password: password(shortcode, env.MPESA_PASSKEY, ts),
         Timestamp: ts,
+        // Lipa Na M-Pesa Online against the Safaricom Paybill (linked to Equity at Safaricom).
+        // Do not use CustomerBuyGoodsOnline. There is no separate Equity Bank API.
         TransactionType: "CustomerPayBillOnline",
         Amount: input.amountKes,
         PartyA: input.phone,

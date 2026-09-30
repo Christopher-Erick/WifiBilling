@@ -13,24 +13,26 @@ On expiry or revoke those rows are deleted.
 
 Each registered site is upserted into `nas` (`read_clients = yes`).
 
-## Compose
+## Compose image
 
-`deploy/freeradius` is a small image on top of `freeradius/freeradius-server:3.2.3`. It:
+`deploy/freeradius/Dockerfile` is **Debian** (`freeradius` + `freeradius-postgresql`). Configs are **copied into the image** so Windows Docker bind-mounts cannot mark them world-writable (a common restart loop). The entrypoint:
 
-- Starts `radiusd -f -l stdout` (the previous Compose command `-f -l stdout` never launched radiusd and looped)
-- Enables the SQL module against the same Postgres as the app
-- Waits for `migrate` so RADIUS tables exist
-- Loads `dictionary.mikrotik` for `Mikrotik-Rate-Limit`
+1. Writes `mods-available/sql` from `RADIUS_DB_*` env
+2. Enables the SQL module and uncomments `sql` in the default site
+3. Waits for the `radcheck` table (after Compose `migrate`)
+4. Runs `freeradius -f -l stdout`
+
+Do not bind-mount `/etc/freeradius`. Rebuild the image after client changes, or rely on SQL `nas` for production routers.
 
 ## Testing a user
 
 After a demo payment in the portal:
 
 ```bash
-radtest wf2547… password RADIUS_HOST 0 testing123
+radtest <login-name> <password> RADIUS_HOST 0 testing123
 ```
 
-Username is shown on the portal success screen (treat the password as a secret).
+Login name is shown on the portal success screen (treat the password as a secret).
 
 ## Accounting
 

@@ -1,0 +1,19 @@
+# Production overlay. Forces live Daraja + production Node.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+#
+# Set LIPAWIFI_HTTP_PORT=80 and LIPAWIFI_HTTPS_PORT=443 in .env.
+# Put a Cloudflare Origin certificate in the nginxcerts volume (see docs/cloudflare.md).
+services:
+  app:
+    environment:
+      NODE_ENV: production
+      MPESA_PROVIDER: daraja
+      TRUST_PROXY: ${TRUST_PROXY:-nginx}
+  worker:
+    environment:
+      NODE_ENV: production
+      MPESA_PROVIDER: daraja
+  scheduler:
+    environment:
+      NODE_ENV: production
+      MPESA_PROVIDER: daraja

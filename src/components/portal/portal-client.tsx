@@ -44,6 +44,7 @@ export function PortalClient({
     try {
       const res = await fetch("/api/v1/customer/payments", {
         method: "POST",
+        credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           phone,
@@ -142,7 +143,7 @@ export function PortalClient({
                   {error}
                 </p>
               )}
-              <Button className="w-full" size="lg" type="submit" disabled={pending || !phone.trim()}>
+              <Button className="h-14 w-full text-lg font-semibold" size="lg" type="submit" disabled={pending || !phone.trim()}>
                 {pending ? "Sending M-Pesa prompt…" : "Pay with M-Pesa"}
               </Button>
               <p className="text-xs text-muted-foreground">

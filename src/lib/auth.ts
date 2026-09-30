@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { Role } from "@prisma/client";
-import { getEnv } from "@/lib/env";
+import { cookiesShouldBeSecure, getEnv } from "@/lib/env";
 import { prisma } from "@/lib/db";
 import type { Permission } from "@/lib/rbac";
 import { hasPermission } from "@/lib/rbac";
@@ -55,12 +55,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export function sessionCookieOptions() {
-  const secure = getEnv().NODE_ENV === "production";
   return {
     name: COOKIE,
     httpOnly: true,
     sameSite: "lax" as const,
-    secure,
+    secure: cookiesShouldBeSecure(),
     path: "/",
     maxAge: 60 * 60 * 12,
   };

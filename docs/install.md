@@ -27,24 +27,27 @@ Other roles: `finance@`, `support@`, `netops@`, `readonly@` (see `prisma/seed.ts
 
 ## Compose
 
+Local demo (nginx on **43127** via `LIPAWIFI_HTTP_PORT`):
+
 ```bash
 cp .env.example .env
-# For a local demo you may leave MPESA_PROVIDER=mock and NODE_ENV=development.
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile seed up --build
 ```
 
-Nginx publishes **43127**. App, worker, scheduler, Postgres, Redis, and FreeRADIUS start together. Health and ready are served through nginx:
+Production (`NODE_ENV=production`, nginx **80/443**):
+
+```bash
+cp .env.production.example .env
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+docker compose --profile seed run --rm seed   # once
+```
+
+Health and ready go through nginx (`LIPAWIFI_HTTP_PORT`, default 80 in Compose, 43127 in `.env.example`):
 
 - http://127.0.0.1:43127/api/v1/public/health
 - http://127.0.0.1:43127/api/v1/public/ready
 
-Run seed once:
-
-```bash
-docker compose exec app npx tsx prisma/seed.ts
-```
-
-Compose always sets `DATABASE_URL` and `REDIS_URL` to the `db` and `redis` services so a host URL in `.env` cannot break the stack.
+Compose always sets `DATABASE_URL` and `REDIS_URL` to the `db` and `redis` services so a host URL in `.env` cannot break the stack. The `migrate` service must complete before app / worker / scheduler / FreeRADIUS start.
 
 ## Environment
 

@@ -12,7 +12,7 @@ LipaWiFi is a Next.js App Router application plus Node worker/scheduler processe
 | PostgreSQL | 5432 | App tables + `nas`/`radcheck`/`radreply`/`radacct` |
 | Redis | 6379 | Rate limit + locks |
 | FreeRADIUS | 1812/1813 UDP | Auth/acct for every MikroTik NAS |
-| Nginx | 43127 in compose | Reverse proxy, security headers |
+| Nginx | **80/443** (`LIPAWIFI_HTTP_PORT` locally) | Reverse proxy, TLS, Docker DNS resolver |
 
 ## Request path
 
