@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
+import { loginAction } from "@/app/admin/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,33 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Wifi } from "lucide-react";
 
 export function LoginForm() {
-  const router = useRouter();
   const search = useSearchParams();
-  const [email, setEmail] = useState("admin@lipawifi.local");
-  const [password, setPassword] = useState("ChangeMe_Admin1!");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/v1/admin/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed");
-      router.push(search.get("next") || "/admin");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [state, action, pending] = useActionState(loginAction, undefined);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -49,18 +25,33 @@ export function LoginForm() {
           <CardDescription>Roles are enforced on the server. Use a seeded account in development.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
+          <form className="space-y-4" action={action}>
+            <input type="hidden" name="next" value={search.get("next") || "/admin"} />
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue="admin@lipawifi.local"
+                autoComplete="username"
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                defaultValue="ChangeMe_Admin1!"
+                autoComplete="current-password"
+                required
+              />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button className="w-full" size="lg" disabled={busy}>
-              {busy ? "Signing in…" : "Sign in"}
+            {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+            <Button className="w-full" size="lg" type="submit" disabled={pending}>
+              {pending ? "Signing in…" : "Sign in"}
             </Button>
           </form>
         </CardContent>
