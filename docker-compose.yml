@@ -32,6 +32,8 @@ services:
     environment:
       PORT: 43127
       HOSTNAME: 0.0.0.0
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +46,9 @@ services:
   migrate:
     build: .
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
     command: ["npx", "prisma", "migrate", "deploy"]
     depends_on:
       db:
@@ -53,6 +58,9 @@ services:
   worker:
     build: .
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
     command: ["npx", "tsx", "src/jobs/worker.ts"]
     depends_on:
       db:
@@ -64,6 +72,9 @@ services:
   scheduler:
     build: .
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lipawifi:${POSTGRES_PASSWORD:-lipawifi_dev}@db:5432/lipawifi?schema=public
+      REDIS_URL: redis://redis:6379
     command: ["npx", "tsx", "src/jobs/scheduler.ts"]
     depends_on:
       db:
