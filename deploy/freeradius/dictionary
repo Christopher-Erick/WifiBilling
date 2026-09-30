@@ -1,0 +1,2 @@
+$INCLUDE	/usr/share/freeradius/dictionary
+$INCLUDE	dictionary.mikrotik

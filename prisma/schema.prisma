@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE
+  SUPPORT
+  NETWORK_OPERATOR
+  READ_ONLY
+}
+
+enum PaymentStatus {
+  INITIATED
+  STK_SENT
+  STK_FAILED
+  PAID
+  FAILED
+  CANCELLED
+  ACTIVATING
+  ACTIVATED
+  ACTIVATION_FAILED
+}
+
+enum PaymentChannel {
+  STK_PUSH
+  C2B_PAYBILL
+}
+
+enum SubscriptionStatus {
+  PENDING
+  QUEUED
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum RenewalMode {
+  EXTEND
+  QUEUE
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  @@map("admin_users")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments      Payment[]
+  subscriptions Subscription[]
+
+  @@map("customers")
+}
+
+model Package {
+  id                String      @id @default(cuid())
+  name              String
+  description       String
+  priceKes          Int
+  durationSeconds   Int
+  downloadKbps      Int
+  uploadKbps        Int
+  burstDownloadKbps Int?
+  simultaneousUse   Int         @default(1)
+  renewalMode       RenewalMode @default(EXTEND)
+  isActive          Boolean     @default(true)
+  sortOrder         Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  payments      Payment[]
+  subscriptions Subscription[]
+
+  @@map("packages")
+}
+
+model MikrotikDevice {
+  id              String    @id @default(cuid())
+  name            String
+  siteName        String
+  host            String
+  apiPort         Int       @default(8728)
+  apiUsername     String
+  apiPassword     String
+  radiusSecret    String
+  nasIdentifier   String    @unique
+  walledGarden    String?
+  isActive        Boolean   @default(true)
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  payments      Payment[]
+  subscriptions Subscription[]
+
+  @@map("mikrotik_devices")
+}
+
+model Payment {
+  id                 String         @id @default(cuid())
+  customerId         String
+  packageId          String
+  deviceId           String
+  channel            PaymentChannel @default(STK_PUSH)
+  status             PaymentStatus  @default(INITIATED)
+  amountKes          Int
+  phone              String
+  merchantRequestId  String?
+  checkoutRequestId  String?        @unique
+  mpesaReceipt       String?        @unique
+  resultCode         String?
+  resultDesc         String?
+  idempotencyKey     String         @unique
+  hotspot            Json
+  rawCallback        Json?
+  failureReason      String?
+  radiusProvisionedAt DateTime?
+  accessConfirmedAt  DateTime?
+  activatedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  package      Package       @relation(fields: [packageId], references: [id])
+  device       MikrotikDevice @relation(fields: [deviceId], references: [id])
+  subscription Subscription?
+
+  @@index([status, createdAt])
+  @@index([phone, createdAt])
+  @@index([deviceId, status])
+  @@map("payments")
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  customerId      String
+  packageId       String
+  deviceId        String
+  paymentId       String             @unique
+  status          SubscriptionStatus @default(PENDING)
+  renewalMode     RenewalMode
+  radiusUsername  String
+  radiusPassword  String
+  startsAt        DateTime
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  customer Customer       @relation(fields: [customerId], references: [id])
+  package  Package        @relation(fields: [packageId], references: [id])
+  device   MikrotikDevice @relation(fields: [deviceId], references: [id])
+  payment  Payment        @relation(fields: [paymentId], references: [id])
+
+  @@index([status, expiresAt])
+  @@index([radiusUsername])
+  @@index([customerId, deviceId, status])
+  @@map("subscriptions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorType  String
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model Nas {
+  id          Int     @id @default(autoincrement())
+  nasname     String  @db.VarChar(128)
+  shortname   String? @db.VarChar(32)
+  type        String? @default("other") @db.VarChar(30)
+  ports       Int?
+  secret      String  @default("secret") @db.VarChar(60)
+  server      String? @db.VarChar(64)
+  community   String? @db.VarChar(50)
+  description String? @db.VarChar(200)
+
+  @@map("nas")
+}
+
+model RadCheck {
+  id        Int    @id @default(autoincrement())
+  username  String @default("") @db.VarChar(64)
+  attribute String @default("") @db.VarChar(64)
+  op        String @default(":=") @db.Char(2)
+  value     String @default("") @db.VarChar(253)
+
+  @@index([username], map: "radcheck_username")
+  @@map("radcheck")
+}
+
+model RadReply {
+  id        Int    @id @default(autoincrement())
+  username  String @default("") @db.VarChar(64)
+  attribute String @default("") @db.VarChar(64)
+  op        String @default(":=") @db.Char(2)
+  value     String @default("") @db.VarChar(253)
+
+  @@index([username], map: "radreply_username")
+  @@map("radreply")
+}
+
+model RadUserGroup {
+  id        Int    @id @default(autoincrement())
+  username  String @default("") @db.VarChar(64)
+  groupname String @default("") @db.VarChar(64)
+  priority  Int    @default(1)
+
+  @@index([username], map: "radusergroup_username")
+  @@map("radusergroup")
+}
+
+model RadAcct {
+  radacctid          BigInt    @id @default(autoincrement())
+  acctsessionid      String    @default("") @db.VarChar(64)
+  acctuniqueid       String    @unique @default("") @db.VarChar(32)
+  username           String    @default("") @db.VarChar(64)
+  realm              String?   @db.VarChar(64)
+  nasipaddress       String    @default("") @db.VarChar(15)
+  nasportid          String?   @db.VarChar(32)
+  nasporttype        String?   @db.VarChar(32)
+  acctstarttime      DateTime?
+  acctupdatetime     DateTime?
+  acctstoptime       DateTime?
+  acctinterval       Int?
+  acctsessiontime    Int?
+  acctauthentic      String?   @db.VarChar(32)
+  connectinfo_start  String?   @db.VarChar(128)
+  connectinfo_stop   String?   @db.VarChar(128)
+  acctinputoctets    BigInt?
+  acctoutputoctets   BigInt?
+  calledstationid    String    @default("") @db.VarChar(50)
+  callingstationid   String    @default("") @db.VarChar(50)
+  acctterminatecause String    @default("") @db.VarChar(32)
+  servicetype        String?   @db.VarChar(32)
+  framedprotocol     String?   @db.VarChar(32)
+  framedipaddress    String    @default("") @db.VarChar(15)
+  framedipv6address  String?   @db.VarChar(45)
+  framedipv6prefix   String?   @db.VarChar(45)
+  framedinterfaceid  String?   @db.VarChar(44)
+  delegatedipv6prefix String?  @db.VarChar(45)
+  class              String?   @db.VarChar(64)
+
+  @@index([username], map: "radacct_username")
+  @@index([framedipaddress], map: "radacct_framedipaddress")
+  @@index([acctsessionid], map: "radacct_acctsessionid")
+  @@index([acctstarttime], map: "radacct_acctstarttime")
+  @@index([acctstoptime], map: "radacct_acctstoptime")
+  @@index([nasipaddress], map: "radacct_nasipaddress")
+  @@index([callingstationid], map: "radacct_callingstationid")
+  @@map("radacct")
+}
+
+model RadPostAuth {
+  id       Int      @id @default(autoincrement())
+  username String   @db.VarChar(64)
+  pass     String   @db.VarChar(64)
+  reply    String   @db.VarChar(32)
+  authdate DateTime @default(now()) @db.Timestamptz(6)
+  class    String?  @db.VarChar(64)
+
+  @@map("radpostauth")
+}
+
+model RadGroupCheck {
+  id        Int    @id @default(autoincrement())
+  groupname String @default("") @db.VarChar(64)
+  attribute String @default("") @db.VarChar(64)
+  op        String @default(":=") @db.Char(2)
+  value     String @default("") @db.VarChar(253)
+
+  @@index([groupname], map: "radgroupcheck_groupname")
+  @@map("radgroupcheck")
+}
+
+model RadGroupReply {
+  id        Int    @id @default(autoincrement())
+  groupname String @default("") @db.VarChar(64)
+  attribute String @default("") @db.VarChar(64)
+  op        String @default(":=") @db.Char(2)
+  value     String @default("") @db.VarChar(253)
+
+  @@index([groupname], map: "radgroupreply_groupname")
+  @@map("radgroupreply")
+}

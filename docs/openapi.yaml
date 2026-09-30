@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: LipaWiFi API
+  version: 1.0.0
+  description: Versioned REST API for MikroTik Wi-Fi billing with M-Pesa.
+servers:
+  - url: http://127.0.0.1:43127
+paths:
+  /api/v1/public/health:
+    get:
+      tags: [public]
+      summary: Liveness
+      responses:
+        "200": { description: OK }
+  /api/v1/public/ready:
+    get:
+      tags: [public]
+      summary: Readiness (Postgres)
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+  /api/v1/public/packages:
+    get:
+      tags: [public]
+      summary: Active packages for the captive portal
+      responses:
+        "200": { description: Package list }
+  /api/v1/customer/payments:
+    post:
+      tags: [customer]
+      summary: Start STK Push
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, packageId]
+              properties:
+                phone: { type: string }
+                packageId: { type: string }
+                deviceId: { type: string }
+                hotspot: { type: object }
+      responses:
+        "200": { description: STK sent }
+  /api/v1/customer/payments/{id}:
+    get:
+      tags: [customer]
+      summary: Payment status and RADIUS credentials when activated
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Status }
+  /api/v1/webhooks/mpesa/stk:
+    post:
+      tags: [webhooks]
+      summary: Daraja STK callback (idempotent)
+      responses:
+        "200": { description: Accepted }
+  /api/v1/webhooks/mpesa/c2b/confirmation:
+    post:
+      tags: [webhooks]
+      summary: C2B Paybill confirmation (idempotent on TransID)
+      responses:
+        "200": { description: Accepted }
+  /api/v1/admin/login:
+    post:
+      tags: [admin]
+      summary: Create session cookie
+      responses:
+        "200": { description: Authenticated }
+        "401": { description: Invalid credentials }
+  /api/v1/admin/reconciliation:
+    get:
+      tags: [admin]
+      summary: Paid-not-activated and activated-not-confirmed queues
+      responses:
+        "200": { description: Queues }
+        "401": { description: Auth required }
+  /api/v1/admin/payments/{id}/retry:
+    post:
+      tags: [admin]
+      summary: Retry RADIUS activation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Activated }
+security:
+  - adminCookie: []
+  - internalToken: []
+components:
+  securitySchemes:
+    adminCookie:
+      type: apiKey
+      in: cookie
+      name: lipawifi_session
+    internalToken:
+      type: http
+      scheme: bearer
