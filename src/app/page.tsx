@@ -23,12 +23,12 @@ export default function HomePage() {
         <section className="max-w-2xl">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent">Open source · Kenya</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
-            Wi-Fi billing that waits for M-Pesa Paybill before anyone gets online.
+            Wi-Fi billing that waits for M-Pesa before anyone gets online.
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
-            LipaWiFi is for Kenyan operators. Customers pick a package, pay Lipa na M-Pesa Paybill (money settles to
-            the Equity account linked to your shortcode), and only then get access. Optional STK prompt. Expiry takes
-            access away.
+            LipaWiFi is for Kenyan operators. Customers pick a package and pay with an M-Pesa PIN prompt. Money lands
+            on your Safaricom Paybill (settled to the linked Equity account). Manual Paybill is shown as a fallback.
+            Expiry takes access away.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button size="lg" asChild>
@@ -45,7 +45,7 @@ export default function HomePage() {
         </section>
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { title: "Paybill first", body: "Customers pay Lipa na M-Pesa Paybill. Wi-Fi turns on only after Safaricom confirms — typing the account number is not payment." },
+            { title: "STK first", body: "Pay with M-Pesa sends a PIN prompt. Paybill number, account, and amount stay on screen if they need to pay by hand. Typing the account is not payment." },
             { title: "Many Wi-Fi sites", body: "Every payment belongs to a site you register. Secrets stay per router." },
             { title: "Reconciliation", body: "See paid-but-not-online queues and retry from the operator dashboard." },
           ].map((item) => (

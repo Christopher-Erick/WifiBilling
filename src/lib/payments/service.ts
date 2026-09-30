@@ -68,13 +68,13 @@ export async function initiateCustomerPayment(
   });
 
   const accountReference = generateAccountReference();
-  const method = input.method === "stk" ? "stk" : "paybill";
+  const method = input.method === "paybill" ? "paybill" : "stk";
   const payment = await prisma.payment.create({
     data: {
       customerId: customer.id,
       packageId: pkg.id,
       deviceId: device.id,
-      channel: "C2B_PAYBILL",
+      channel: method === "stk" ? "STK_PUSH" : "C2B_PAYBILL",
       status: "INITIATED",
       amountKes: pkg.priceKes,
       phone,
@@ -96,7 +96,20 @@ export async function initiateCustomerPayment(
   });
 
   if (method === "stk") {
-    return requestStkForPayment(prisma, payment.id, { ip: input.ip, requestId: input.requestId });
+    try {
+      return await requestStkForPayment(prisma, payment.id, { ip: input.ip, requestId: input.requestId });
+    } catch (err) {
+      const failed = await prisma.payment.findUnique({ where: { id: payment.id } });
+      const config = await getPortalConfig(prisma);
+      return {
+        payment: failed ?? payment,
+        mock: config.mock,
+        customerMessage:
+          err instanceof Error ? err.message : "The M-Pesa prompt did not send. You can pay manually to Paybill.",
+        paybillNumber: config.paybillNumber,
+        accountReference,
+      };
+    }
   }
 
   const config = await getPortalConfig(prisma);

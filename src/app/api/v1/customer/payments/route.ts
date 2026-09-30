@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       hotspot: body.hotspot ?? {},
       ip: clientIp(req),
       requestId,
-      method: body.method ?? "paybill",
+      method: body.method ?? "stk",
     });
     const config = await getPortalConfig(prisma);
     return json(

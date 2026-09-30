@@ -1,6 +1,6 @@
 # LipaWiFi
 
-Open-source **Wi-Fi billing** for Kenya. Customers pick a package, pay **Lipa na M-Pesa Paybill** (Safaricom settles to the Equity Bank account linked to your shortcode), and get online after confirmation. Optional STK prompt. Expiry takes access away.
+Open-source **Wi-Fi billing** for Kenya. Customers pick a package and **Pay with M-Pesa** (STK Push). Money settles to the **Equity Bank account** linked to your Safaricom Paybill. Manual Paybill (number + account + amount) stays on screen as a fallback. Expiry takes access away.
 
 This is not daloRADIUS and not a single-router appliance. Every payment belongs to a registered site.
 
@@ -25,7 +25,7 @@ npm run worker
 - Health: [http://127.0.0.1:43127/api/v1/public/health](http://127.0.0.1:43127/api/v1/public/health)
 
 **Demo operator:** `admin@lipawifi.local` / `ChangeMe_Admin1!`  
-**M-Pesa:** `MPESA_PROVIDER=mock` — follow the Paybill steps, then **Complete demo payment**. No real money moves.
+**M-Pesa:** `MPESA_PROVIDER=mock` — **Pay with M-Pesa**, then **Complete demo payment** on the status screen. Paybill details stay visible. No real money moves.
 
 ## Docker Compose
 

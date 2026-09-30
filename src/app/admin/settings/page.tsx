@@ -57,8 +57,8 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Operator defaults</CardTitle>
           <CardDescription>
-            Paybill is the customer payment path. Safaricom settles that Paybill to the Equity Bank account linked on
-            the shortcode — LipaWiFi never sees bank credentials.
+            Customers pay with an M-Pesa PIN prompt (STK). The same Paybill number is shown as a manual fallback.
+            Safaricom settles that Paybill to the Equity Bank account linked on the shortcode.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,8 +79,8 @@ export default function SettingsPage() {
                 placeholder="Shown on the customer portal"
               />
               <p className="text-xs text-muted-foreground">
-                Same shortcode you registered with Safaricom / Daraja. Must match MPESA_PAYBILL (or MPESA_SHORTCODE) in
-                the server environment.
+                STK Push uses this shortcode (`MPESA_PAYBILL`, falling back to `MPESA_SHORTCODE`). Customers also type
+                it if they pay Lipa na M-Pesa → Pay Bill by hand.
               </p>
             </div>
             <div className="space-y-1">
@@ -100,7 +100,8 @@ export default function SettingsPage() {
                 checked={form.stk_enabled}
                 onChange={(e) => setForm({ ...form, stk_enabled: e.target.checked })}
               />
-              Offer “Send M-Pesa prompt to my phone” (optional STK). Paybill stays the default.
+              Send the M-Pesa PIN prompt (STK). Keep this on — it is the customer path. Paybill details stay visible as
+              a manual fallback.
             </label>
             <Button type="submit">Save settings</Button>
           </form>

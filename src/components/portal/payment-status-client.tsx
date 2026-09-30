@@ -59,7 +59,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 function statusCopy(status: string) {
-  if (["INITIATED", "STK_SENT"].includes(status)) return "Waiting for M-Pesa";
+  if (status === "STK_SENT") return "Enter your M-Pesa PIN";
+  if (status === "INITIATED") return "Sending M-Pesa prompt";
   if (["PAID", "ACTIVATING"].includes(status)) return "Payment received — turning on Wi-Fi";
   if (status === "ACTIVATED") return "You are paid";
   if (status === "STK_FAILED") return "Phone prompt did not complete";
@@ -76,6 +77,8 @@ export function PaymentStatusClient({ initial }: { initial: PaymentView }) {
   const waiting = ["INITIATED", "STK_SENT", "PAID", "ACTIVATING", "STK_FAILED"].includes(payment.status);
   const ready = payment.status === "ACTIVATED" && payment.credentials;
   const failed = ["FAILED", "CANCELLED", "ACTIVATION_FAILED"].includes(payment.status);
+  const showStkRetry =
+    waiting && payment.status !== "PAID" && payment.status !== "ACTIVATING" && payment.status !== "STK_SENT";
 
   useEffect(() => {
     if (!waiting) return;
@@ -103,7 +106,7 @@ export function PaymentStatusClient({ initial }: { initial: PaymentView }) {
       }
       setPayment((prev) => ({ ...prev, status: data.status }));
     } catch {
-      setError("No network. Try Paybill on your phone instead.");
+      setError("No network. You can still pay manually to Paybill.");
     } finally {
       setStkPending(false);
     }
@@ -139,54 +142,49 @@ export function PaymentStatusClient({ initial }: { initial: PaymentView }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {waiting && (
-            <div className="space-y-3 rounded-xl bg-muted p-4">
-              <p className="text-sm font-medium">Pay with Lipa na M-Pesa Paybill</p>
+          {waiting && payment.status !== "PAID" && payment.status !== "ACTIVATING" && (
+            <div className="space-y-3 rounded-xl bg-primary/5 p-4">
+              <p className="text-sm font-medium">Check {payment.phone} for the M-Pesa PIN prompt.</p>
               <p className="text-sm text-muted-foreground">
-                On your phone: M-Pesa → Lipa na M-Pesa → Pay Bill. Use these details exactly.
+                Enter your PIN on the phone. This page updates when Safaricom confirms. Money goes to Paybill{" "}
+                {payment.paybillNumber || "for this Wi-Fi"} (Equity Bank settlement).
+              </p>
+              {showStkRetry && (
+                <Button className="w-full" size="lg" type="button" disabled={stkPending} onClick={() => void sendStk()}>
+                  <Smartphone className="h-4 w-4" />
+                  {stkPending ? "Sending prompt…" : "Send M-Pesa prompt again"}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {payment.status === "STK_FAILED" && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm">
+              The phone prompt did not complete. Send it again, or pay manually to Paybill using the details below.
+            </p>
+          )}
+
+          {waiting && (
+            <div className="space-y-3 rounded-xl border border-dashed border-border p-4">
+              <p className="text-sm font-medium">Or pay manually</p>
+              <p className="text-sm text-muted-foreground">
+                On your phone: M-Pesa → Lipa na M-Pesa → Pay Bill. Use the same Paybill the prompt uses.
               </p>
               <div className="space-y-2">
                 <CopyField label="Paybill number" value={payment.paybillNumber || "Ask attendant"} />
                 <CopyField label="Account number" value={payment.accountReference || "—"} />
                 <CopyField label="Amount" value={String(payment.amountKes)} />
               </div>
-              <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-                <li>Enter the Paybill number</li>
-                <li>Enter the account number</li>
-                <li>Enter {formatKes(payment.amountKes)} — not more, not less</li>
-                <li>Enter your PIN and confirm</li>
-              </ol>
               <p className="text-xs text-muted-foreground">
-                This page waits for Safaricom to confirm. Typing the account here does not pay. Money goes to the
-                business Paybill (Equity Bank settlement).
+                Typing the account number here does not pay. Wait for M-Pesa to confirm.
               </p>
             </div>
-          )}
-
-          {payment.status === "STK_SENT" && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm">
-              Check {payment.phone} for the M-Pesa PIN prompt. If it does not appear, pay with Paybill using the numbers
-              above.
-            </p>
-          )}
-
-          {payment.status === "STK_FAILED" && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm">
-              The phone prompt did not complete. You can still pay with Paybill, or send another prompt.
-            </p>
-          )}
-
-          {waiting && payment.stkEnabled && payment.status !== "PAID" && payment.status !== "ACTIVATING" && (
-            <Button className="w-full" variant="outline" type="button" disabled={stkPending} onClick={() => void sendStk()}>
-              <Smartphone className="h-4 w-4" />
-              {stkPending ? "Sending prompt…" : "Send M-Pesa prompt to my phone"}
-            </Button>
           )}
 
           {waiting && payment.mock && (
             <div className="rounded-lg border border-dashed border-accent/40 p-3">
               <p className="mb-2 text-xs text-muted-foreground">
-                Demo mode — no real money moves. Production uses live Paybill confirmation only.
+                Demo mode — no real money moves. Use this instead of a live PIN prompt.
               </p>
               <Button className="w-full" variant="accent" type="button" disabled={demoPending} onClick={() => void completeDemo()}>
                 {demoPending ? "Completing…" : "Complete demo payment"}

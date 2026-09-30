@@ -55,3 +55,9 @@ export function resetEnvCache() {
 export function isMockMpesa(): boolean {
   return getEnv().MPESA_PROVIDER === "mock" || getEnv().NODE_ENV === "test";
 }
+
+/** STK and manual Paybill both use this Equity-linked Safaricom shortcode. */
+export function mpesaPaybillShortcode(): string {
+  const env = getEnv();
+  return (env.MPESA_PAYBILL || env.MPESA_SHORTCODE).trim();
+}

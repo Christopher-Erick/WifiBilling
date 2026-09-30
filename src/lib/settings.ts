@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { getEnv, isMockMpesa } from "@/lib/env";
+import { getEnv, isMockMpesa, mpesaPaybillShortcode } from "@/lib/env";
 
 export type PortalConfig = {
   brandName: string;
@@ -20,8 +20,7 @@ export async function getPortalConfig(prisma: PrismaClient): Promise<PortalConfi
   const env = getEnv();
   const rows = await prisma.systemSetting.findMany();
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-  const paybill =
-    String(jsonScalar(map.paybill_number) || env.MPESA_PAYBILL || env.MPESA_SHORTCODE || "").trim();
+  const paybill = String(jsonScalar(map.paybill_number) || mpesaPaybillShortcode() || "").trim();
   const stkSetting = jsonScalar(map.stk_enabled);
   const stkEnabled = stkSetting === false || stkSetting === "false" ? false : env.MPESA_STK_ENABLED;
   return {

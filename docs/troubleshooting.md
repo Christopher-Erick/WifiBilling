@@ -12,9 +12,9 @@ Wi-Fi turns on only after Safaricom calls `POST /api/v1/webhooks/mpesa/c2b/confi
 
 ## STK never completes
 
-- Mock: click **Complete demo payment** on the Paybill screen.
-- Daraja: callback URL publicly reachable, shortcode/passkey match, phone on the sandbox whitelist.
-- Customer can still pay the same order with Paybill if the prompt is cancelled.
+- Mock: click **Complete demo payment** on the waiting screen.
+- Daraja: STK must use `MPESA_PAYBILL` (same Equity-linked shortcode). Callback URL publicly reachable, passkey match, phone on the sandbox whitelist.
+- Customer can still pay the same order with **or pay manually** (Paybill number + account + amount).
 - Check `payments.status`, `resultDesc`, and `audit_logs`.
 
 ## Paid but not online

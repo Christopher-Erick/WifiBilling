@@ -21,7 +21,7 @@ export async function startPaymentAction(_prev: { error?: string } | undefined, 
       phone,
       packageId,
       hotspot: pickHotspotParams(raw),
-      method: "paybill",
+      method: "stk",
     });
     paymentId = result.payment.id;
   } catch (err) {

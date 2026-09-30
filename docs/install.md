@@ -23,7 +23,7 @@ npm run worker       # optional second terminal
 Seeded operator: `admin@lipawifi.local` / `ChangeMe_Admin1!`  
 Other roles: `finance@`, `support@`, `netops@`, `readonly@` (see `prisma/seed.ts`).
 
-`MPESA_PROVIDER=mock` is the default. The customer portal shows Paybill steps and **Complete demo payment**. Do not use mock in production (`NODE_ENV=production` refuses it).
+`MPESA_PROVIDER=mock` is the default. The customer portal **Pay with M-Pesa** sends a mock STK prompt and shows Paybill as a manual fallback plus **Complete demo payment**. Do not use mock in production (`NODE_ENV=production` refuses it).
 
 ## Compose
 

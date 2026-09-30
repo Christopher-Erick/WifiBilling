@@ -48,7 +48,7 @@ export function PortalClient({
         body: JSON.stringify({
           phone,
           packageId: chosen.id,
-          method: "paybill",
+          method: "stk",
           hotspot,
         }),
       });
@@ -78,8 +78,8 @@ export function PortalClient({
       </header>
 
       <p className="text-sm text-muted-foreground">
-        Choose a package, enter your Safaricom number, then pay to Paybill. Wi-Fi turns on after M-Pesa confirms — not
-        when you type the account number.
+        Choose a package and enter your Safaricom number. We send an M-Pesa PIN prompt to that phone. You can also pay
+        manually to Paybill if the prompt does not appear.
       </p>
 
       <form onSubmit={(e) => void startPay(e)} className="space-y-4">
@@ -120,7 +120,8 @@ export function PortalClient({
             <CardHeader>
               <CardTitle className="text-base">2. Your M-Pesa number</CardTitle>
               <CardDescription>
-                {chosen.name} · {formatKes(chosen.priceKes)} for {chosen.durationLabel}
+                {chosen.name} · {formatKes(chosen.priceKes)} for {chosen.durationLabel}. A PIN prompt will appear on this
+                phone.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -142,11 +143,11 @@ export function PortalClient({
                 </p>
               )}
               <Button className="w-full" size="lg" type="submit" disabled={pending || !phone.trim()}>
-                {pending ? "Preparing Paybill…" : "Continue to Paybill"}
+                {pending ? "Sending M-Pesa prompt…" : "Pay with M-Pesa"}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Next screen shows Paybill {config.paybillNumber || "number"}, your account, and the exact amount.
-                {config.stkEnabled ? " You can also send an M-Pesa prompt to this phone." : ""}
+                Next screen waits for the PIN prompt. Paybill {config.paybillNumber || "number"} is shown if you need to
+                pay manually. Typing the account number here does not pay.
               </p>
             </CardContent>
           </Card>
